@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Extractor and Dictionary</title>
+    <style>
+        #container {
+            display: flex;
+            height: 100vh;
+            margin: 20px;
+        }
+        #textContent {
+            flex: 1;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-right: 20px;
+            border-right: 1px solid #ccc;
+            padding-right: 20px;
+            overflow-y: auto;
+            font-size: 16px;
+        }
+        #iframeContainer {
+            flex: 1;
+            height: 100%;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        #inputArea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 20px;
+        }
+        #fontSizeSelector {
+            margin-bottom: 10px;
+        }
+        #outputBox {
+            width: 100%;
+            height: 150px;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        #exportButton {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Text Extractor and Dictionary</h1>
+
+<textarea id="inputArea" placeholder="Paste or enter text here..."></textarea>
+<br>
+<label for="fontSizeRange">Select Font Size: </label>
+<input type="range" id="fontSizeRange" min="10" max="30" value="16">
+<span id="fontSizeValue">16px</span>
+<br>
+<button id="fetchText">Process Text</button>
+
+<div id="container">
+    <div id="textContent"></div>
+    <div id="iframeContainer">
+        <iframe id="dictionaryIframe" src=""></iframe>
+    </div>
+</div>
+
+<h2>Selected Words</h2>
+<textarea id="outputBox" readonly></textarea>
+<br>
+<button id="exportButton">Export List</button>
+
+<script>
+document.getElementById('fetchText').addEventListener('click', function() {
+    const textContentDiv = document.getElementById('textContent');
+    const inputText = document.getElementById('inputArea').value;
+
+    // Split the text into words and make them clickable
+    textContentDiv.innerHTML = inputText.split(' ').map(word => `<span class="word">${word}</span>`).join(' ');
+
+    addWordClickEvent();
+});
+
+function addWordClickEvent() {
+    document.querySelectorAll('.word').forEach(wordSpan => {
+        wordSpan.addEventListener('click', function() {
+            let word = this.innerText;
+            const cleanedWord = cleanWord(word);  // Clean only the selected word from extra characters
+            const iframe = document.getElementById('dictionaryIframe');
+            iframe.src = `https://www.linguee.com/english-dutch/search?source=auto&query=${encodeURIComponent(cleanedWord)}`;
+
+            addToOutputBox(cleanedWord);
+        });
+    });
+}
+
+// Function to clean the selected word from special characters
+function cleanWord(word) {
+    return word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim();
+}
+
+function addToOutputBox(word) {
+    const outputBox = document.getElementById('outputBox');
+    let words = outputBox.value.split('\n').filter(Boolean);
+    if (!words.includes(word)) {
+        words.push(word);
+        words.sort(); // Sort the words alphabetically
+        outputBox.value = words.join('\n');
+    }
+}
+
+document.getElementById('fontSizeRange').addEventListener('input', function() {
+    const fontSize = this.value + 'px';
+    document.getElementById('textContent').style.fontSize = fontSize;
+    document.getElementById('fontSizeValue').textContent = fontSize;
+});
+
+document.getElementById('exportButton').addEventListener('click', function() {
+    const outputBox = document.getElementById('outputBox');
+    const textToSave = outputBox.value;
+    const blob = new Blob([textToSave], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Word_list.txt';
+    link.click();
+});
+</script>
+
+</body>
+</html>

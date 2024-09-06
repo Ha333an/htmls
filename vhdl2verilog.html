@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VHDL to Verilog Converter</title>
+    <!-- Highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <!-- Include Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- Load languages for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/verilog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/vhdl.min.js"></script>
+    <!-- Initiate Highlight.js -->
+    <script>hljs.highlightAll();</script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .code-box {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            overflow: auto;
+        }
+        #output {
+            white-space: pre-wrap;
+        }
+        button {
+            margin-bottom: 20px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>VHDL to Verilog Module Converter</h2>
+    <textarea id="vhdlInput" class="code-box" placeholder="Enter VHDL entity"></textarea>
+    <button onclick="convertToVerilog()">Convert to Verilog Module</button>
+    <button onclick="copyToClipboard()">Copy Output</button>
+    <pre id="output" class="code-box"><code class="verilog"></code></pre>
+
+    <script>
+        function convertToVerilog() {
+            const vhdlInput = document.getElementById("vhdlInput").value;
+            const verilogOutput = document.getElementById("output").querySelector("code");
+
+            // Regular expressions to capture different parts of VHDL code
+            const entityRegex = /entity\s+(\w+)\s+is\s*port\s*\(([\s\S]*?)\);\s*end\s*entity;/i;
+            const portRegex = /(\w+)\s*:\s*(in|out)\s*(std_logic_vector\s*\((\d+)\s+downto\s+0\)|std_logic)/gi;
+
+            const entityMatch = vhdlInput.match(entityRegex);
+
+            if (!entityMatch) {
+                verilogOutput.textContent = "Invalid VHDL entity syntax.";
+                hljs.highlightElement(verilogOutput);
+                return;
+            }
+
+            const entityName = entityMatch[1];
+            const portsSection = entityMatch[2];
+            let verilogModule = `module ${entityName} (\n`;
+
+            let portMatch;
+            const portDeclarations = [];
+            while ((portMatch = portRegex.exec(portsSection)) !== null) {
+                const portName = portMatch[1];
+                const direction = portMatch[2].trim().toLowerCase();
+                const type = portMatch[3].trim().toLowerCase();
+
+                let verilogDirection;
+                if (direction === "in") {
+                    verilogDirection = "input";
+                } else if (direction === "out") {
+                    verilogDirection = "output";
+                }
+
+                let verilogType = "";
+                if (type.includes("std_logic_vector")) {
+                    const widthMatch = type.match(/std_logic_vector\s*\((\d+)\s+downto\s+0\)/i);
+                    if (widthMatch) {
+                        const width = widthMatch[1];
+                        verilogType = `[${width}:0]`;
+                    }
+                } else {
+                    verilogType = ""; // default to single-bit wire (std_logic)
+                }
+
+                portDeclarations.push(`    ${verilogDirection} ${verilogType} ${portName}`);
+            }
+
+            verilogModule += portDeclarations.join(",\n") + "\n);\nendmodule\n";
+
+            // Update output and apply syntax highlighting
+            verilogOutput.textContent = verilogModule;
+            hljs.highlightElement(verilogOutput);
+        }
+
+        function copyToClipboard() {
+            const outputElement = document.getElementById("output").querySelector("code");
+            const tempTextarea = document.createElement("textarea");
+            tempTextarea.value = outputElement.textContent;
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempTextarea);
+            alert("Verilog code copied to clipboard!");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verilog to VHDL Converter</title>
+    <!-- Highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <!-- Include Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- Load languages for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/verilog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/vhdl.min.js"></script>
+    <!-- Initiate Highlight.js -->
+    <script>hljs.highlightAll();</script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .code-box {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            overflow: auto;
+        }
+        #output {
+            white-space: pre-wrap;
+        }
+        button {
+            margin-bottom: 20px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Verilog to VHDL Entity Converter</h2>
+    <textarea id="verilogInput" class="code-box" placeholder="Enter Verilog module or IO pins"></textarea>
+    <button onclick="convertToVHDL()">Convert to VHDL Entity</button>
+    <button onclick="copyToClipboard()">Copy Output</button>
+    <pre id="output" class="code-box"><code class="vhdl"></code></pre>
+
+    <script>
+        function convertToVHDL() {
+            const verilogInput = document.getElementById("verilogInput").value;
+            const vhdlOutput = document.getElementById("output").querySelector("code");
+
+            // Regular expressions to capture different parts of Verilog code
+            const moduleRegex = /module\s+(\w+)\s*;?/;
+            const ioRegex = /(input|output|wire|reg)\s*(\[.*?\])?\s*([\w, ]+);/g;
+
+            const moduleMatch = verilogInput.match(moduleRegex);
+
+            if (!moduleMatch) {
+                vhdlOutput.textContent = "Invalid Verilog module syntax.";
+                hljs.highlightElement(vhdlOutput);
+                return;
+            }
+
+            const moduleName = moduleMatch[1];
+            let vhdlEntity = `entity ${moduleName} is\n    port (\n`;
+
+            let portMatch;
+            while ((portMatch = ioRegex.exec(verilogInput)) !== null) {
+                const directionType = portMatch[1];
+                const width = portMatch[2] ? portMatch[2].trim() : "";
+                const names = portMatch[3].split(',').map(name => name.trim());
+
+                names.forEach(name => {
+                    let vhdlDirection;
+                    if (directionType === "input" || directionType === "reg") {
+                        vhdlDirection = "in";
+                    } else if (directionType === "output" || directionType === "wire") {
+                        vhdlDirection = "out";
+                    }
+
+                    const vhdlWidth = width ? `std_logic_vector(${width.replace("[", "").replace("]", "").replace(":", " downto ")})` : "std_logic";
+
+                    vhdlEntity += `        ${name} : ${vhdlDirection} ${vhdlWidth};\n`;
+                });
+            }
+
+            vhdlEntity = vhdlEntity.trim().slice(0, -1); // Remove last semicolon
+            vhdlEntity += "\n    );\nend entity;\n";
+
+            // Update output and apply syntax highlighting
+            vhdlOutput.textContent = vhdlEntity;
+            hljs.highlightElement(vhdlOutput);
+        }
+
+        function copyToClipboard() {
+            const outputElement = document.getElementById("output").querySelector("code");
+            const tempTextarea = document.createElement("textarea");
+            tempTextarea.value = outputElement.textContent;
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempTextarea);
+            alert("VHDL code copied to clipboard!");
+        }
+    </script>
+</body>
+</html>

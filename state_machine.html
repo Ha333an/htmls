@@ -1,0 +1,225 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>State Machine Diagram with VHDL Export</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.52/go.js"></script>
+    <style>
+        #myDiagramDiv {
+            width: 100%;
+            height: 600px;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body onload="init()">
+    <div id="myDiagramDiv"></div>
+    <button onclick="exportVHDL()">Export VHDL</button>
+
+    <script>
+        function init() {
+            const $ = go.GraphObject.make;
+
+            const myDiagram = $(go.Diagram, "myDiagramDiv", {
+                layout: $(go.ForceDirectedLayout),
+                "undoManager.isEnabled": true,
+                "linkingTool.isEnabled": true,
+                "relinkingTool.isEnabled": true,
+                "clickCreatingTool.archetypeNodeData": { key: "New State" }, // Default new node data
+                "contextMenu":  // Define a context menu for the diagram itself
+                    $("ContextMenu",
+                        $("ContextMenuButton",
+                            $(go.TextBlock, "Add New Node"),
+                            {
+                                click: function(e, obj) {
+                                    const diagram = obj.part.diagram;
+                                    const point = diagram.lastInput.documentPoint;
+                                    createNewNode(point);
+                                }
+                            }
+                        )
+                    )
+            });
+
+            myDiagram.nodeTemplate =
+                $(go.Node, "Auto",
+                    {
+                        fromLinkable: true,
+                        toLinkable: true,
+                        cursor: "pointer",
+                        contextMenu: $("ContextMenu",
+                            $("ContextMenuButton",
+                                $(go.TextBlock, "Create Self-Loop"),
+                                {
+                                    click: function(e, obj) {
+                                        const node = obj.part.adornedPart;
+                                        createSelfLoop(node);
+                                    }
+                                }
+                            )
+                        )
+                    },
+                    $(go.Shape, "RoundedRectangle", { strokeWidth: 0, fill: "lightblue" }),
+                    $(go.TextBlock,
+                        { margin: 8, editable: true },
+                        new go.Binding("text", "key").makeTwoWay())
+                );
+
+            myDiagram.linkTemplate =
+                $(go.Link,
+                    { relinkableFrom: true, relinkableTo: true, curve: go.Link.Bezier, curviness: 10 },
+                    $(go.Shape),
+                    $(go.Shape, { toArrow: "OpenTriangle" }),
+                    $(go.Panel, "Auto",
+                        $(go.Shape,
+                            {
+                                fill: "white",
+                                strokeWidth: 0
+                            }),
+                        $(go.TextBlock,
+                            {
+                                textAlign: "center",
+                                font: "10pt sans-serif",
+                                margin: 3,
+                                editable: true
+                            },
+                            new go.Binding("text", "label").makeTwoWay())
+                    )
+                );
+
+            // Initial nodes and links
+            myDiagram.model = new go.GraphLinksModel(
+                [
+                    { key: "Idle" },
+                    { key: "State2" },
+                    { key: "State3" },
+                    { key: "State4" }
+                ],
+                [
+                    { from: "Idle", to: "State2", label: "a && !b" },
+                    { from: "Idle", to: "State3", label: "c || d" },
+                    { from: "State3", to: "State4", label: "e" },
+                    { from: "State4", to: "Idle", label: "f && g" }
+                ]
+            );
+            function createNewNode(point) {
+                myDiagram.startTransaction("Create New Node");
+
+                // Add the new node at the clicked point
+                myDiagram.model.addNodeData({
+                    key: "NewState_" + myDiagram.model.nodeDataArray.length,
+                    loc: go.Point.stringify(point)
+                });
+
+                myDiagram.commitTransaction("Create New Node");
+            }
+
+            function createSelfLoop(node) {
+                const diagram = node.diagram;
+                diagram.startTransaction("Create Self-Loop");
+
+                diagram.model.addLinkData({
+                    from: node.data.key,
+                    to: node.data.key,
+                    label: "Self_Loop"
+                });
+
+                diagram.commitTransaction("Create Self-Loop");
+            }
+        }
+
+        function parseTransitionExpression(expression) {
+            // Split the expression by spaces and translate into VHDL syntax
+            return expression.split(/\s+/).map(token => {
+                if (token === "&&") return "and";
+                if (token === "||") return "or";
+                if (token.startsWith("!")) return `${token.substring(1)} = '0'`;
+                return `${token} = '1'`;
+            }).join(" ");
+        }
+
+        function exportVHDL() {
+            const diagram = go.Diagram.fromDiv("myDiagramDiv");
+            const model = diagram.model;
+
+            let states = {};
+            let transitions = [];
+
+            // Create a mapping of node keys to their current text (name)
+            const nodeNames = {};
+            model.nodeDataArray.forEach(node => {
+                nodeNames[node.key] = node.key;
+                states[node.key] = [];
+            });
+
+            model.linkDataArray.forEach(link => {
+                if (states[link.from]) {
+                    const sanitizedLabel = link.label.replace(/\s+/g, '_');
+                    states[nodeNames[link.from]].push({ to: nodeNames[link.to], label: parseTransitionExpression(link.label) });
+                }
+            });
+
+            let vhdl = `
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity StateMachine is
+    Port (
+        clk : in STD_LOGIC;
+        reset : in STD_LOGIC;
+    );
+end StateMachine;
+
+architecture Behavioral of StateMachine is
+    type state_type is (${Object.keys(states).map(s => s).join(", ")});
+    signal current_state, next_state : state_type;
+begin
+    process (clk, reset)
+    begin
+        if reset = '1' then
+            current_state <= ${Object.keys(states)[0]};
+        elsif rising_edge(clk) then
+            current_state <= next_state;
+        end if;
+    end process;
+
+    process (current_state)
+    begin
+        case current_state is
+`;
+
+            for (let state in states) {
+                vhdl += `            when ${state} =>
+`;
+                states[state].forEach((transition, index) => {
+                    vhdl += `${index === 0 ? "                if" : "elsif"} (${transition.label}) then
+                    next_state <= ${transition.to};
+                `;
+                });
+                vhdl += `else
+                    next_state <= current_state;
+                end if;\n`;
+            }
+
+            vhdl += `
+            when others =>
+                next_state <= ${Object.keys(states)[0]};
+        end case;
+    end process;
+end Behavioral;
+`;
+
+            const blob = new Blob([vhdl], { type: "text/plain;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "state_machine.vhdl";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

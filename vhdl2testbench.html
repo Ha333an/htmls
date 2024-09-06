@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VHDL Entity to Testbench Converter</title>
+    <!-- Highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <!-- Include Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- Load languages for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/vhdl.min.js"></script>
+    <!-- Initiate Highlight.js -->
+    <script>hljs.highlightAll();</script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .code-box {
+            width: 100%;
+            height: 250px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            overflow: auto;
+        }
+        #output {
+            white-space: pre-wrap;
+        }
+        button {
+            margin-bottom: 20px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>VHDL Entity to Testbench Converter</h2>
+    <textarea id="vhdlInput" class="code-box" placeholder="Enter VHDL entity"></textarea>
+    <button onclick="generateTestbench()">Generate VHDL Testbench</button>
+    <button onclick="copyToClipboard()">Copy Output</button>
+    <pre id="output" class="code-box"><code class="vhdl"></code></pre>
+
+    <script>
+        function generateTestbench() {
+            const vhdlInput = document.getElementById("vhdlInput").value;
+            const vhdlOutput = document.getElementById("output").querySelector("code");
+
+            // Regular expressions to capture different parts of VHDL code
+            const entityRegex = /entity\s+(\w+)\s+is\s*port\s*\(([\s\S]*?)\);\s*end\s*entity;/i;
+            const portRegex = /(\w+)\s*:\s*(in|out)\s*(std_logic_vector\s*\((\d+)\s+downto\s+0\)|std_logic)/gi;
+
+            const entityMatch = vhdlInput.match(entityRegex);
+
+            if (!entityMatch) {
+                vhdlOutput.textContent = "Invalid VHDL entity syntax.";
+                hljs.highlightElement(vhdlOutput);
+                return;
+            }
+
+            const entityName = entityMatch[1];
+            const portsSection = entityMatch[2];
+            let signalsDeclaration = "";
+            let portMap = "";
+            let clkSignal = "";
+            let rstSignal = "";
+            let isResetActiveLow = false;
+
+            let portMatch;
+            while ((portMatch = portRegex.exec(portsSection)) !== null) {
+                const portName = portMatch[1];
+                const direction = portMatch[2].trim().toLowerCase();
+                const type = portMatch[3].trim().toLowerCase();
+
+                let signalType = "";
+                if (type.includes("std_logic_vector")) {
+                    const widthMatch = type.match(/std_logic_vector\s*\((\d+)\s+downto\s+0\)/i);
+                    if (widthMatch) {
+                        const width = widthMatch[1];
+                        signalType = `std_logic_vector(${width} downto 0)`;
+                    }
+                } else {
+                    signalType = "std_logic";
+                }
+
+                // Create signal declarations
+                signalsDeclaration += `signal ${portName} : ${signalType};\n`;
+
+                // Detect clock and reset signals
+                if (portName.toLowerCase().includes("clk") || portName.toLowerCase().includes("clock")) {
+                    clkSignal = portName;
+                }
+                if (portName.toLowerCase().includes("rst") || portName.toLowerCase().includes("reset")) {
+                    rstSignal = portName;
+                    if (portName.toLowerCase().endsWith("_an") || portName.toLowerCase().endsWith("_n")) {
+                        isResetActiveLow = true;
+                    }
+                }
+
+                // Create port map
+                portMap += `    ${portName} => ${portName},\n`;
+            }
+
+            // Remove trailing comma and newline from port map
+            portMap = portMap.trim().slice(0, -1);
+
+            // Clock and reset initialization
+            let clockProcess = "";
+            if (clkSignal) {
+                clockProcess = `
+    -- Clock generation process
+    clk_process: process
+    begin
+        ${clkSignal} <= '0';
+        wait for 10 ns;
+        ${clkSignal} <= '1';
+        wait for 10 ns;
+    end process clk_process;
+`;
+            }
+
+            let resetInitialization = "";
+            if (rstSignal) {
+                resetInitialization = isResetActiveLow
+                    ? `${rstSignal} <= '0'; -- Active low reset\n        wait for 20 ns;\n        ${rstSignal} <= '1'; -- Release reset\n`
+                    : `${rstSignal} <= '1'; -- Active high reset\n        wait for 20 ns;\n        ${rstSignal} <= '0'; -- Release reset\n`;
+            }
+
+            // Create the testbench template
+            const testbenchTemplate = `
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity ${entityName}_tb is
+end ${entityName}_tb;
+
+architecture behavior of ${entityName}_tb is
+    -- Component declaration for the UUT
+    component ${entityName}
+        port(
+${portsSection}
+        );
+    end component;
+
+    -- Signals declaration
+${signalsDeclaration}
+begin
+    -- Instantiate the Unit Under Test (UUT)
+    uut: ${entityName}
+        port map (
+${portMap}
+        );
+
+${clockProcess}
+
+    -- Stimulus process
+    stim_proc: process
+    begin
+        -- Initialize Inputs
+${resetInitialization}
+        -- Add your test vectors here
+        wait for 100 ns; -- Wait for some time
+        wait; -- Wait forever
+    end process stim_proc;
+
+end behavior;
+`;
+
+            // Update output and apply syntax highlighting
+            vhdlOutput.textContent = testbenchTemplate;
+            hljs.highlightElement(vhdlOutput);
+        }
+
+        function copyToClipboard() {
+            const outputElement = document.getElementById("output").querySelector("code");
+            const tempTextarea = document.createElement("textarea");
+            tempTextarea.value = outputElement.textContent;
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempTextarea);
+            alert("VHDL testbench code copied to clipboard!");
+        }
+    </script>
+</body>
+</html>

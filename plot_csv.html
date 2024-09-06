@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Table with Plot</title>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <!-- canvas2svg -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas2svg/1.0.10/canvas2svg.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #csvFileInput {
+            margin-bottom: 20px;
+        }
+        #dataTable {
+            margin-top: 20px;
+            width: 100%;
+        }
+        #chartContainer {
+            margin-top: 40px;
+            width: 80%;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        #rowSelection {
+            margin-top: 20px;
+        }
+        .selected {
+        background-color: #d0e5ff;  /* Light blue background for selected rows */
+    }
+    </style>
+</head>
+<body>
+
+<h2>CSV to Table and Plot</h2>
+<input type="file" id="csvFileInput" accept=".csv" />
+
+<div id="controls">
+    <!-- X-Axis Selection Dropdown -->
+    <label for="xAxisSelect">Select X-Axis:</label>
+    <select id="xAxisSelect"></select>
+
+    <!-- Y-Axis Checkbox Container -->
+    <div id="checkboxContainer"></div>
+
+    <!-- Row Selection Dropdowns -->
+    <div id="rowSelection">
+        <label for="startRow">Start Row:</label>
+        <select id="startRow"></select>
+        <label for="endRow">End Row:</label>
+        <select id="endRow"></select>
+    </div>
+
+    <!-- Save Plot Button -->
+    <button id="saveSVG">Save as SVG</button>
+</div>
+
+<table id="dataTable" class="display"></table>
+
+<!-- Chart Container -->
+<div id="chartContainer">
+    <canvas id="myChart"></canvas>
+</div>
+
+<script>
+    let dataTable;  // To store DataTable reference
+    let tableData = [];  // To store CSV data globally for selection
+
+    // Function to load CSV file
+    document.getElementById('csvFileInput').addEventListener('change', function(event) {
+        let file = event.target.files[0];
+        Papa.parse(file, {
+            header: true,  // Parse the first row as headers
+            dynamicTyping: true,  // Convert numeric strings to numbers
+            skipEmptyLines: true,  // Skip empty lines
+            complete: function(results) {
+                tableData = results.data.filter(row => {
+                    return Object.keys(row).length === Object.keys(results.meta.fields).length;
+                });
+                createXAxisDropdown(results.meta.fields);  // Create dropdown for x-axis
+                createCheckboxes(results.meta.fields);  // Generate checkboxes dynamically
+                createRowSelectors(tableData.length);  // Create row selectors
+                createDataTable(tableData);
+            }
+        });
+    });
+
+    // Function to create X-Axis dropdown
+    function createXAxisDropdown(columns) {
+        const xAxisSelect = document.getElementById('xAxisSelect');
+        xAxisSelect.innerHTML = '';  // Clear existing options
+
+        columns.forEach(column => {
+            let option = document.createElement('option');
+            option.value = column;
+            option.textContent = column;
+            xAxisSelect.appendChild(option);
+        });
+
+        // Replot the chart when x-axis selection changes
+        xAxisSelect.addEventListener('change', plotSelectedRows);
+    }
+
+    // Function to create checkboxes for each column
+    function createCheckboxes(columns) {
+        const container = document.getElementById('checkboxContainer');
+        container.innerHTML = '';  // Clear existing checkboxes
+
+        columns.forEach(column => {
+            let checkbox = `<label><input type="checkbox" class="columnCheckbox" value="${column}" checked> ${column}</label><br>`;
+            container.innerHTML += checkbox;
+        });
+
+        // Replot when checkboxes are toggled
+        $('.columnCheckbox').on('change', plotSelectedRows);
+    }
+
+    // Function to create row selectors
+    function createRowSelectors(totalRows) {
+        const startRowSelect = document.getElementById('startRow');
+        const endRowSelect = document.getElementById('endRow');
+        
+        startRowSelect.innerHTML = '';
+        endRowSelect.innerHTML = '';
+        
+        for (let i = 0; i < totalRows; i++) {
+            let option = document.createElement('option');
+            option.value = i;
+            option.textContent = i + 1;  // Display row numbers starting from 1
+            startRowSelect.appendChild(option);
+            endRowSelect.appendChild(option.cloneNode(true));
+        }
+
+        // Replot the chart when row selection changes
+        startRowSelect.addEventListener('change', plotSelectedRows);
+        endRowSelect.addEventListener('change', plotSelectedRows);
+    }
+
+    // Function to create DataTable
+// Function to create DataTable
+function createDataTable(data) {
+    // Clear any previous table
+    if (dataTable) {
+        dataTable.destroy();
+        $('#dataTable').empty();
+    }
+
+    // Create the table with the parsed CSV data
+    dataTable = $('#dataTable').DataTable({
+        data: data,
+        columns: Object.keys(data[0]).map(function(key) {
+            return { title: key, data: key };
+        }),
+        paging: true,
+        searching: true,
+        ordering: true,
+        select: true  // Enable row selection
+    });
+
+    // Add event listener to capture selected rows and plot
+    $('#dataTable tbody').on('click', 'tr', function () {
+        $(this).toggleClass('selected');  // Toggle selected class
+        plotSelectedRows();  // Plot the selected rows
+    });
+}
+
+    // Function to plot the selected rows
+    function plotSelectedRows() {
+        let selectedData = dataTable.rows('.selected').data().toArray();
+        if (selectedData.length === 0) {
+            // If no rows are selected, filter by start and end rows
+            let startRow = parseInt(document.getElementById('startRow').value);
+            let endRow = parseInt(document.getElementById('endRow').value);
+            
+            // Ensure startRow is less than or equal to endRow
+            if (startRow > endRow) {
+                [startRow, endRow] = [endRow, startRow];
+            }
+
+            selectedData = tableData.slice(startRow, endRow + 1);  // Use tableData for slicing
+        }
+
+        // Get selected x-axis column from the dropdown
+        let xAxisColumn = document.getElementById('xAxisSelect').value;
+
+        // Extract x-axis values from the selected column
+        let labels = selectedData.map(row => row[xAxisColumn]);  // Use selected column for x-axis labels
+
+        // Get selected columns from checkboxes
+        let selectedColumns = Array.from(document.querySelectorAll('.columnCheckbox:checked')).map(cb => cb.value);
+
+        let datasets = [];
+
+        // For each selected column, create a dataset
+        selectedColumns.forEach((colName) => {
+            let data = selectedData.map(row => row[colName]);
+            datasets.push({
+                label: colName,
+                data: data,
+                fill: false,
+                borderColor: getRandomColor(),
+                borderWidth: 2
+            });
+        });
+
+        // Create or update the chart
+        createChart(labels, datasets);
+    }
+
+    // Function to create or update the chart
+    function createChart(labels, datasets) {
+        let ctx = document.getElementById('myChart').getContext('2d');
+        
+        // Check if the chart exists and destroy it if necessary
+        if (window.myChart instanceof Chart) {
+            window.myChart.destroy();
+        }
+
+        // Create a new chart
+        window.myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,  // Use selected x-axis values for the x-axis
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        type: 'category',  // Treat x-axis as category to display selected column values
+                        display: true,
+                        title: {
+                            display: true,
+                            text: document.getElementById('xAxisSelect').value  // Dynamic x-axis title
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Value'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Function to generate random color for each dataset
+    function getRandomColor() {
+        let letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+// Function to save the plot as SVG
+document.getElementById('saveSVG').addEventListener('click', function() {
+    if (window.myChart) {
+        html2canvas(document.getElementById('myChart'), {
+            onrendered: function(canvas) {
+                let svg = canvas.toDataURL('image/svg+xml');  // Create SVG from canvas
+
+                // Convert the SVG to a Blob
+                let svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+                let svgUrl = URL.createObjectURL(svgBlob);
+
+                // Create a link element and trigger the download
+                let link = document.createElement('a');
+                link.href = svgUrl;
+                link.download = 'chart.svg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+    } else {
+        alert('No chart to save');
+    }
+});
+
+</script>
+
+</body>
+</html>

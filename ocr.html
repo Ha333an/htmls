@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Text Extraction</title>
+    <style>
+        #imagePreview {
+            max-width: 100%;
+            height: auto;
+            display: none;
+        }
+        #progress {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Image Text Extraction</h1>
+
+<input type="file" id="imageInput" accept="image/*">
+<br><br>
+
+<img id="imagePreview" alt="Image Preview">
+<br><br>
+
+<button id="extractText">Extract Text</button>
+<br><br>
+
+<h2>Extracted Text</h2>
+<textarea id="outputText" rows="10" cols="80" readonly></textarea>
+
+<div id="progress"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.0/tesseract.min.js"></script>
+
+<script>
+    document.getElementById('imageInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('imagePreview').src = e.target.result;
+                document.getElementById('imagePreview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    document.getElementById('extractText').addEventListener('click', function() {
+        const image = document.getElementById('imagePreview').src;
+        if (image) {
+            document.getElementById('progress').innerText = 'Extracting text...';
+            Tesseract.recognize(
+                image,
+                'eng',  // Language
+                {
+                    logger: info => {
+                        // Update progress
+                        document.getElementById('progress').innerText = `Progress: ${(info.progress * 100).toFixed(2)}%`;
+                    }
+                }
+            ).then(({ data: { text } }) => {
+                document.getElementById('outputText').value = text;
+                document.getElementById('progress').innerText = 'Text extraction complete.';
+            }).catch(error => {
+                console.error(error);
+                document.getElementById('progress').innerText = 'Error occurred during text extraction.';
+            });
+        } else {
+            alert('Please upload an image first.');
+        }
+    });
+</script>
+
+</body>
+</html>
