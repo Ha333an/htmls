@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary to Hex Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        textarea {
+            width: 300px;
+            height: 100px;
+            margin-bottom: 20px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Binary to Hex Converter</h1>
+    <textarea id="binaryInput" placeholder="Enter binary string"></textarea>
+    <button onclick="convertBinaryToHex()">Convert to Hex</button>
+    <textarea id="hexOutput" placeholder="Hex result" readonly></textarea>
+
+    <script>
+        function convertBinaryToHex() {
+            const binaryInput = document.getElementById('binaryInput').value.trim();
+            const hexOutput = document.getElementById('hexOutput');
+            
+            // Validate input
+            if (!/^[01\s]+$/.test(binaryInput)) {
+                alert('Invalid binary string. Only 0s and 1s are allowed.');
+                return;
+            }
+
+            // Remove spaces from binary string
+            const binaryString = binaryInput.replace(/\s+/g, '');
+            
+            // Convert binary string to hexadecimal
+            try {
+                const hexString = parseInt(binaryString, 2).toString(16).toUpperCase();
+                hexOutput.value = hexString.padStart(Math.ceil(binaryString.length / 4), '0');
+            } catch (e) {
+                hexOutput.value = 'Error in conversion.';
+            }
+        }
+    </script>
+</body>
+</html>
