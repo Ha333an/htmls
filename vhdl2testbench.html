@@ -52,12 +52,14 @@
         function generateTestbench() {
             const vhdlInput = document.getElementById("vhdlInput").value;
             const vhdlOutput = document.getElementById("output").querySelector("code");
-            const entityOrComponentRegex = /(entity|component)\s+(\w+)\s+(is)?\s*port\s*\(((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*?)\)\s*;\s*(end\s*\1\s*\2;)?/i;
+
+            // Regex for entity/component with generic and port sections
+            const entityOrComponentRegex = /(entity|component)\s+(\w+)\s+(is)?\s*generic\s*\(((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*?)\)\s*port\s*\(((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*?)\)\s*;\s*(end\s*\1\s*\2;)?/i;
             const portRegex = /(\w+)\s*:\s*(in|out)\s*(std_logic_vector\s*\((?:\d+\s+downto\s+\d+)\)|std_logic)/gi;
+            const genericRegex = /(\w+)\s*:\s*(\w+)\s*:=\s*([^;\n]+)\s*;?/gi;
 
-
+            // Match entity/component
             const match = vhdlInput.match(entityOrComponentRegex);
-
             if (!match) {
                 vhdlOutput.textContent = "Invalid VHDL syntax. Ensure it is an entity or component declaration.";
                 hljs.highlightElement(vhdlOutput);
@@ -66,16 +68,31 @@
 
             const declarationType = match[1]; // 'entity' or 'component'
             const entityName = match[2];
-            const portsSection = match[4];
+            const genericsSection = match[4] || "";
+            const portsSection = match[5] || "";
             let signalsDeclaration = "";
             let portMap = "";
+            let genericsDeclaration = "";
 
+            // Parse generics
+            if (genericsSection) {
+                let genericMatch;
+                while ((genericMatch = genericRegex.exec(genericsSection)) !== null) {
+                    const genericName = genericMatch[1];
+                    const genericType = genericMatch[2];
+                    const genericDefaultValue = genericMatch[3].trim();
 
+                    genericsDeclaration += `    ${genericName} => ${genericDefaultValue},\n`;
+                }
+                genericsDeclaration = genericsDeclaration.trim().slice(0, -1); // Remove trailing comma
+            }
+            let portMatch;
             let clkSignal = "";
             let rstSignal = "";
             let isResetActiveLow = false;
-
-            let portMatch;
+            // Parse ports
+            if (portsSection) {
+ 
             while ((portMatch = portRegex.exec(portsSection)) !== null) {
                 const portName = portMatch[1];
                 const direction = portMatch[2].trim().toLowerCase();
@@ -107,7 +124,7 @@
 
 
 
-            // }
+             }
 
 
 
@@ -143,37 +160,42 @@ end ${entityName}_tb;
 
 architecture behavior of ${entityName}_tb is
     -- Component declaration for the UUT
-    component ${entityName}
+    ${declarationType} ${entityName}
+        generic(
+${genericsDeclaration || "            -- No generics defined"}
+        )
         port(
-${portsSection}
+${portsSection || "            -- No ports defined"}
         );
-    end component;
+    end ${declarationType};
 
     -- Signals declaration
-${signalsDeclaration}
+${signalsDeclaration || "    -- No signals required"}
+
 begin
     -- Instantiate the Unit Under Test (UUT)
     uut: ${entityName}
+        generic map (
+${genericsDeclaration || "            -- No generics to map"}
+        )
         port map (
-${portMap}
+${portMap || "            -- No ports to map"}
         );
 
 ${clockProcess}
-
-    -- Stimulus process
+    -- Add stimulus processes here
     stim_proc: process
     begin
         -- Initialize Inputs
 ${resetInitialization}
         -- Add your test vectors here
-        wait for 100 ns; -- Wait for some time
-        wait; -- Wait forever
+        wait for 100 ns;
+        wait;
     end process stim_proc;
 
 end behavior;
 `;
 
-            // Update output and apply syntax highlighting
             vhdlOutput.textContent = testbenchTemplate;
             hljs.highlightElement(vhdlOutput);
         }
