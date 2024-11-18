@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,6 +18,7 @@
             font-family: Arial, sans-serif;
             margin: 20px;
         }
+
         .code-box {
             width: 100%;
             height: 250px;
@@ -27,15 +29,18 @@
             margin-bottom: 20px;
             overflow: auto;
         }
+
         #output {
             white-space: pre-wrap;
         }
+
         button {
             margin-bottom: 20px;
             margin-right: 10px;
         }
     </style>
 </head>
+
 <body>
     <h2>VHDL Entity to Testbench Converter</h2>
     <textarea id="vhdlInput" class="code-box" placeholder="Enter VHDL entity"></textarea>
@@ -47,23 +52,25 @@
         function generateTestbench() {
             const vhdlInput = document.getElementById("vhdlInput").value;
             const vhdlOutput = document.getElementById("output").querySelector("code");
+            const entityOrComponentRegex = /(entity|component)\s+(\w+)\s+(is)?\s*port\s*\(((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*?)\)\s*;\s*(end\s*\1\s*\2;)?/i;
+            const portRegex = /(\w+)\s*:\s*(in|out)\s*(std_logic_vector\s*\((?:\d+\s+downto\s+\d+)\)|std_logic)/gi;
 
-            // Regular expressions to capture different parts of VHDL code
-            const entityRegex = /entity\s+(\w+)\s+is\s*port\s*\(([\s\S]*?)\);\s*end\s*entity;/i;
-            const portRegex = /(\w+)\s*:\s*(in|out)\s*(std_logic_vector\s*\((\d+)\s+downto\s+0\)|std_logic)/gi;
 
-            const entityMatch = vhdlInput.match(entityRegex);
+            const match = vhdlInput.match(entityOrComponentRegex);
 
-            if (!entityMatch) {
-                vhdlOutput.textContent = "Invalid VHDL entity syntax.";
+            if (!match) {
+                vhdlOutput.textContent = "Invalid VHDL syntax. Ensure it is an entity or component declaration.";
                 hljs.highlightElement(vhdlOutput);
                 return;
             }
 
-            const entityName = entityMatch[1];
-            const portsSection = entityMatch[2];
+            const declarationType = match[1]; // 'entity' or 'component'
+            const entityName = match[2];
+            const portsSection = match[4];
             let signalsDeclaration = "";
             let portMap = "";
+
+
             let clkSignal = "";
             let rstSignal = "";
             let isResetActiveLow = false;
@@ -74,19 +81,12 @@
                 const direction = portMatch[2].trim().toLowerCase();
                 const type = portMatch[3].trim().toLowerCase();
 
-                let signalType = "";
-                if (type.includes("std_logic_vector")) {
-                    const widthMatch = type.match(/std_logic_vector\s*\((\d+)\s+downto\s+0\)/i);
-                    if (widthMatch) {
-                        const width = widthMatch[1];
-                        signalType = `std_logic_vector(${width} downto 0)`;
-                    }
-                } else {
-                    signalType = "std_logic";
-                }
+                let signalType = type.includes("std_logic_vector")
+                    ? `std_logic_vector(${type.match(/std_logic_vector\s*\((\d+\s+downto\s+\d+)\)/i)[1]})`
+                    : "std_logic";
 
-                // Create signal declarations
                 signalsDeclaration += `signal ${portName} : ${signalType};\n`;
+                portMap += `    ${portName} => ${portName},\n`;
 
                 // Detect clock and reset signals
                 if (portName.toLowerCase().includes("clk") || portName.toLowerCase().includes("clock")) {
@@ -98,13 +98,18 @@
                         isResetActiveLow = true;
                     }
                 }
-
-                // Create port map
-                portMap += `    ${portName} => ${portName},\n`;
             }
 
-            // Remove trailing comma and newline from port map
             portMap = portMap.trim().slice(0, -1);
+
+
+
+
+
+
+            // }
+
+
 
             // Clock and reset initialization
             let clockProcess = "";
@@ -185,4 +190,5 @@ end behavior;
         }
     </script>
 </body>
+
 </html>
