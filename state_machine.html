@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,11 +12,13 @@
             height: 600px;
             border: 1px solid black;
         }
+
         .output-signal-input {
             margin: 10px 0;
         }
     </style>
 </head>
+
 <body onload="init()">
     <div id="myDiagramDiv"></div>
     <div id="outputSignalContainer"></div>
@@ -25,6 +28,7 @@
     <button onclick="exportDOT()">Export DOT</button>
     <button onclick="exportJSON()">Export JSON</button>
     <button onclick="importJSON()">Import JSON</button>
+    <div id="calculationContainer"></div>
     <a href="https://dreampuf.github.io/GraphvizOnline"> Graphviz</a>
     <input type="file" id="jsonFileInput" style="display: none;" onchange="loadJSONFile(event)" />
 
@@ -55,7 +59,7 @@
                             $("ContextMenuButton",
                                 $(go.TextBlock, "Create Self-Loop"),
                                 {
-                                    click: function(e, obj) {
+                                    click: function (e, obj) {
                                         const node = obj.part.adornedPart;
                                         createSelfLoop(node);
                                     }
@@ -64,15 +68,22 @@
                         )
                     },
                     $(go.Shape, "RoundedRectangle", { strokeWidth: 0, fill: "lightblue" }),
-                    $(go.TextBlock,
-                        { margin: 8, editable: true },
-                        new go.Binding("text", "key").makeTwoWay())
+                    $(go.Panel, "Table",
+                        { margin: 10 },
+                        $(go.TextBlock, { row: 0, font: "bold 12pt sans-serif", isMultiline: false, editable: true },
+                            new go.Binding("text", "key").makeTwoWay()),
+                        $(go.TextBlock, { row: 1, font: "10pt sans-serif", isMultiline: true, editable: true, background: "lightyellow", width: 100 },
+                            new go.Binding("text", "calc").makeTwoWay()),
+                        $(go.TextBlock, { row: 2, font: "10pt sans-serif", isMultiline: true, editable: true, background: "lightgreen", width: 100 },
+                            new go.Binding("text", "output").makeTwoWay())
+                    )
+        
                 );
 
             // Define link template
             myDiagram.linkTemplate =
                 $(go.Link,
-                    { relinkableFrom: true, relinkableTo: true, curve: go.Link.Bezier, curviness: 50 }, // Curved links with more curvature
+                    { relinkableFrom: true, relinkableTo: true, curve: go.Link.Bezier }, // Curved links with more curvature
                     $(go.Shape),
                     $(go.Shape, { toArrow: "OpenTriangle" }),
                     $(go.Panel, "Auto",
@@ -81,7 +92,7 @@
                             {
                                 textAlign: "center",
                                 font: "10pt sans-serif",
-                                margin: 10,
+                                margin: 0,
                                 editable: true
                             },
                             new go.Binding("text", "label").makeTwoWay())
@@ -89,22 +100,24 @@
                 );
 
             // Delete node listener
-            myDiagram.addDiagramListener("SelectionDeleted", function(e) {
-                updateOutputSignalInputs();
+            myDiagram.addDiagramListener("SelectionDeleted", function (e) {
+                CreateOutputSignal_variables();
+
             });
 
             // Update output signals when a node name is edited
-            myDiagram.addDiagramListener("TextEdited", function(e) {
-                updateOutputSignalInputs();
+            myDiagram.addDiagramListener("TextEdited", function (e) {
+                CreateOutputSignal_variables();
+
             });
 
             // Add default states and transitions
             myDiagram.model = new go.GraphLinksModel(
                 [
-                    { key: "Idle" },
-                    { key: "State2" },
-                    { key: "State3" },
-                    { key: "State4" }
+                    { key: "Idle", calc: "", output: "" },
+                    { key: "State2", calc: "", output: "" },
+                    { key: "State3", calc: "", output: "" },
+                    { key: "State4", calc: "", output: "" }
                 ],
                 [
                     { from: "Idle", to: "State2", label: "a && !b" },
@@ -114,7 +127,7 @@
                 ]
             );
 
-            updateOutputSignalInputs();
+            CreateOutputSignal_variables();
 
             // Function to create a self-loop on a node
             function createSelfLoop(node) {
@@ -129,33 +142,62 @@
 
                 diagram.commitTransaction("Create Self-Loop");
             }
+            // Example function to be called when an input box is updated
+            function onInputUpdate(inputElement) {
+                let inputElementId = inputElement.id;
+                label_id = inputElementId.split('_')[0];
+                node_id = inputElementId.split('_')[1];
+                myDiagram.model.nodeDataArray.forEach(node => {
+                    if (node.key == node_id && label_id == "calc") {
+                        node.calc = inputElement.value;
+                    }
+                    if (node.key == node_id && label_id == "output") {
+                        node.output = inputElement.value;
+                    }
+                });
+                // Add your custom logic here
+            }
+            // Attach event listeners to input boxes
+            // const inputs = document.querySelectorAll('.output-signal-input input');
+            // inputs.forEach(input => {
+            //     input.addEventListener('input', () => onInputUpdate(input));
+            // });
+
 
             // Update the output signal input fields for each state
-            function updateOutputSignalInputs() {
+            function CreateOutputSignal_variables() {
                 const container = document.getElementById("outputSignalContainer");
                 container.innerHTML = '';  // Clear existing fields
 
                 myDiagram.model.nodeDataArray.forEach(node => {
                     const div = document.createElement('div');
                     div.className = 'output-signal-input';
-                    div.id = `output_${node.key}`;
-                    div.innerHTML = `
-                        <label for="output_${node.key}">Output signals for ${node.key}:</label>
-                        <input type="text" id="output_${node.key}" data-node-key="${node.key}" placeholder="e.g., data1=1, data2=0" />
-                    `;
+                    div.id = `state_${node.key}`;
+                    label_text1 = `<label label style="background-color: lightgreen" id="label1_${node.key}">Output signals for ${node.key}: ${node.output}</label>`;
+                    //if (node.output == "")
+                    //label_text2 = `<label for="output_${node.key}" id="label1_${node.key}">Output signals for ${node.key}:</label>`;
+                    //    output_text = `<input type="text" id="output_${node.key}" data-node-key="${node.key}" placeholder="e.g., data1=1, data2=0" />`;
+
+                    label_text2 = `<label style="background-color: lightyellow" id="label2_${node.key}">Calculations for ${node.key}: ${node.calc} </label>`;
+                    // if (node.calc == "")
+                    //     calc_text = `<input type="text" id="calc_${node.key}" data-node-key="${node.key}" placeholder="e.g., x := y + z;" />`;
+
+                    div.innerHTML = label_text1 + "     " + label_text2;
                     container.appendChild(div);
                 });
-            }
 
-            window.exportVHDL = function() {
+
+            };
+
+            // Update VHDL export function
+            window.exportVHDL = function () {
                 const diagram = go.Diagram.fromDiv("myDiagramDiv");
                 const model = diagram.model;
 
                 let states = {};
                 let transitions = [];
-                let inputSignals = new Set(); // Store transition signals as input ports
+                let inputSignals = new Set();
 
-                // Create a mapping of node keys to their current text (name)
                 const nodeNames = {};
                 model.nodeDataArray.forEach(node => {
                     nodeNames[node.key] = node.key;
@@ -163,6 +205,7 @@
                 });
 
                 model.linkDataArray.forEach(link => {
+                    //if(link.label!=="")
                     if (states[link.from]) {
                         const sanitizedLabel = link.label.replace(/\s+/g, '_');
                         states[nodeNames[link.from]].push({ to: nodeNames[link.to], label: parseTransitionExpression(link.label) });
@@ -189,36 +232,63 @@ entity StateMachine is
 `;
 
                 inputSignals.forEach(signal => {
-                    vhdl += `        ${signal.trim()} : in STD_LOGIC;\n`;
+                    if (signal !== "")
+                        vhdl += `        ${signal.trim()} : in STD_LOGIC;\n`;
                 });
 
                 let outputSignals = {};
-                document.querySelectorAll('.output-signal-input input').forEach(input => {
-                    const nodeKey = input.getAttribute('data-node-key');
-                    const signals = input.value.split(',').map(s => s.trim());
+                model.nodeDataArray.forEach(node => {
+                    const signals = node.output.split(',').map(s => s.trim());
                     if (signals.length > 0 && signals[0] !== "") {
-                        outputSignals[nodeKey] = signals;
+                        outputSignals[node.key] = signals;
+                    }
+
+                });
+                // console.log("outputSignals= ", outputSignals)
+
+                let calcVariables = {};
+                let variabls = []
+                model.nodeDataArray.forEach(node => {
+                    const variable = node.calc.split('=')[0].trim();
+                    if (variable.length > 0 && variable[0] !== "") {
+                        calcVariables[node.key] = variable;
+                        variabls.push(variable);
                     }
                 });
+                console.log("calcVariables= ", calcVariables)
+
+
+
+
 
                 let signalNames = [];
                 for (let state in outputSignals) {
-                    outputSignals[state].forEach(signal => {
-                        const [signalName] = signal.split("=");
-                        if (!signalNames.includes(signalName.trim())) {
-                            signalNames.push(signalName.trim());
-                            vhdl += `        ${signalName.trim()} : out STD_LOGIC;\n`;
-                        }
+                    outputSignals[state].forEach(signals => {
+                        part = signals.replace(/\s+/g, '').split(";");
+                        part.forEach(
+                            s => {
+                                if (s !== "") {
+                                    signalName = s.split("=")[0].trim();
+                                    if (signalName != "" && !signalNames.includes(signalName)) {
+                                        signalNames.push(signalName);
+                                        vhdl += `        ${signalName.trim()} : out STD_LOGIC;\n`;
+                                    }
+                                }
+                            });
                     });
                 }
-
-                vhdl += `
-    );
+                console.log("signalNames=", signalNames);
+                console.log("outputSignals=", outputSignals);
+                vhdl += `    );
 end StateMachine;
 
 architecture Behavioral of StateMachine is
     type state_type is (${Object.keys(states).map(s => s).join(", ")});
     signal current_state, next_state : state_type;
+`;
+
+
+                vhdl += `
 begin
     process (clk, reset)
     begin
@@ -232,22 +302,35 @@ begin
     -- Output signal assignments
 `;
 
+
                 signalNames.forEach(signalName => {
                     vhdl += `    ${signalName} <= `;
                     let whenClauses = [];
+
                     for (let state in outputSignals) {
-                        outputSignals[state].forEach(signal => {
-                            const [name, value] = signal.split('=');
-                            if (name.trim() === signalName) {
-                                whenClauses.push(`'${value.trim()}' when current_state = ${state}`);
-                            }
+                        outputSignals[state].forEach(signals => {
+                            part = signals.replace(/\s+/g, '').split(";");
+                            part.forEach(s => {
+                                if (s !== "") {
+                                    const [name, value] = s.split("=");
+                                    if (name.trim() === signalName) {
+                                        whenClauses.push(`'${value.trim()}' when current_state = ${state}`);
+                                    }
+                                }
+                            });
                         });
                     }
-                    vhdl += `${whenClauses.join(' else ')} else '0';\n`;
-                });
 
+                    vhdl += `${whenClauses.join(" else ")} else '0';\n`;
+                });
                 vhdl += `
-    process (current_state)
+    process (current_state)\n `;
+                // Add state-specific variables for calculations
+                variabls.forEach(variable => {
+                    if (variable != "")
+                        vhdl += `    variable ${variable}: integer := 0;\n`;
+                });
+                vhdl += `
     begin
         case current_state is
 `;
@@ -256,9 +339,14 @@ begin
                     vhdl += `            when ${state} =>
 `;
                     states[state].forEach(transition => {
-                        vhdl += `                if (${transition.label}) then\n`;
-                        vhdl += `                    next_state <= ${transition.to};\n`;
-                        vhdl += `                end if;\n`;
+                        if (transition.label.split("=")[0][0] !== " ") //if the right side of assignment was empty
+                        {
+                            vhdl += `                if (${transition.label}) then\n`;
+                            vhdl += `                    next_state <= ${transition.to};\n`;
+                            vhdl += `                end if;\n`;
+                        } else
+                            vhdl += `                    next_state <= ${transition.to};\n`;
+
                     });
                 }
 
@@ -277,8 +365,7 @@ end Behavioral;
                 link.click();
                 document.body.removeChild(link);
             };
-
-            window.exportJSON = function() {
+            window.exportJSON = function () {
                 const diagram = go.Diagram.fromDiv("myDiagramDiv");
                 const json = diagram.model.toJson();
                 const blob = new Blob([json], { type: "application/json;charset=utf-8" });
@@ -289,8 +376,8 @@ end Behavioral;
                 link.click();
                 document.body.removeChild(link);
             };
-              // Export state-machine as DOT language
-              window.exportDOT = function() {
+            // Export state-machine as DOT language
+            window.exportDOT = function () {
                 const model = myDiagram.model;
 
                 let dot = "digraph StateMachine {\n";
@@ -314,19 +401,19 @@ end Behavioral;
                 link.click();
                 document.body.removeChild(link);
             };
-            window.importJSON = function() {
+            window.importJSON = function () {
                 const fileInput = document.getElementById("jsonFileInput");
                 fileInput.click();
             };
 
-            window.loadJSONFile = function(event) {
+            window.loadJSONFile = function (event) {
                 const file = event.target.files[0];
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     const json = e.target.result;
                     const diagram = go.Diagram.fromDiv("myDiagramDiv");
                     diagram.model = go.Model.fromJson(json);
-                    updateOutputSignalInputs();  // Update output signal input fields after import
+                    CreateOutputSignal_variables();  // Update output signal input fields after import
                 };
                 reader.readAsText(file);
             };
@@ -342,4 +429,5 @@ end Behavioral;
         }
     </script>
 </body>
+
 </html>
