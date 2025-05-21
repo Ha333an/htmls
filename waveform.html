@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Waveform Editor with Background Image</title>
+  <script src="https://cdn.jsdelivr.net/npm/wavedrom@2.6.8/wavedrom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/wavedrom@2.6.8/skins/default.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; cursor: crosshair; display: block; margin-bottom: 10px; background-size: contain; background-repeat: no-repeat; }
+    textarea { width: 100%; height: 150px; font-family: monospace; resize: vertical; }
+    label { font-weight: bold; display: block; margin: 10px 0 5px; }
+    #wave { margin-top: 20px; background: #fafafa; padding: 10px; border: 1px solid #ccc; }
+    .controls { margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<h2>Waveform Editor</h2>
+
+<label>Number of Signals:
+  <input type="number" id="numSignals" min="1" max="10" value="2" />
+</label>
+
+<label>Grid Width:
+  <input type="number" id="gridWidth" min="5" max="100" value="20" />
+</label>
+
+<label>Grid Height:
+  <input type="number" id="gridHeight" min="10" max="100" value="50" />
+</label>
+
+<label>Upload Background Image:
+  <input type="file" id="bgImageInput" accept="image/*" />
+</label>
+
+<canvas id="waveform" width="800" height="100"></canvas>
+
+<h3>WaveDrom JSON</h3>
+<textarea id="jsonBox"></textarea>
+
+<div id="wave"></div>
+
+<script>
+  const canvas = document.getElementById("waveform");
+  const ctx = canvas.getContext("2d");
+
+  let cellWidth = 20;
+  let cellHeight = 50;
+  const cols = 40;
+  let cursorX = 0;
+  let currentSignal = 0;
+  let backgroundImage = null;
+
+  let signals = [];
+  let history = [];
+
+  function cloneSignals(sigArray) {
+    return sigArray.map(s => ({
+      name: s.name,
+      data: [...s.data]
+    }));
+  }
+
+  function saveHistory() {
+    history.push(cloneSignals(signals));
+    if (history.length > 100) history.shift();
+  }
+
+  function createSignals(n) {
+    const prev = signals;
+    signals = [];
+    for (let i = 0; i < n; i++) {
+      signals.push({
+        name: "sig" + i,
+        data: prev[i]?.data?.slice(0, cols) || Array(cols).fill(0)
+      });
+    }
+    canvas.height = n * cellHeight;
+    saveHistory();
+    drawWaveform();
+    updateWaveDrom();
+  }
+
+  function encodeWave(data) {
+    if (data.length === 0) return "";
+    let result = data[0].toString();
+    for (let i = 1; i < data.length; i++) {
+      result += (data[i] === data[i - 1]) ? "." : data[i];
+    }
+    return result;
+  }
+
+  function updateWaveDrom() {
+    const json = {
+      signal: signals.map(s => ({
+        name: s.name,
+        wave: encodeWave(s.data)
+      }))
+    };
+    const jsonStr = JSON.stringify(json, null, 2);
+    document.getElementById("jsonBox").value = jsonStr;
+    renderWaveDrom(json);
+  }
+
+  function renderWaveDrom(jsonObj) {
+    const waveDiv = document.getElementById("wave");
+    waveDiv.innerHTML = "";
+    const script = document.createElement("script");
+    script.type = "WaveDrom";
+    script.textContent = JSON.stringify(jsonObj);
+    waveDiv.appendChild(script);
+    WaveDrom.ProcessAll();
+  }
+
+  function loadFromJsonBox() {
+    try {
+      const parsed = JSON.parse(document.getElementById("jsonBox").value);
+      if (!parsed.signal) return;
+
+      saveHistory();
+
+      signals = parsed.signal.map(sig => {
+        const wave = sig.wave || "";
+        const data = [];
+        for (let i = 0; i < wave.length; i++) {
+          const ch = wave[i];
+          if (ch === "0" || ch === "1") {
+            data.push(parseInt(ch));
+          } else if (ch === ".") {
+            data.push(data[data.length - 1] ?? 0);
+          }
+        }
+        while (data.length < cols) data.push(data[data.length - 1] ?? 0);
+        return {
+          name: sig.name || "sig",
+          data: data.slice(0, cols)
+        };
+      });
+
+      canvas.height = signals.length * cellHeight;
+      document.getElementById("numSignals").value = signals.length;
+      drawWaveform();
+      renderWaveDrom(parsed);
+    } catch (err) {
+      console.warn("Invalid JSON");
+    }
+  }
+
+  function drawWaveform() {
+    // Clear
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background Image
+    if (backgroundImage) {
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+    }
+
+    // Grid
+    ctx.strokeStyle = "#eee";
+    for (let x = 0; x <= cols; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * cellWidth, 0);
+      ctx.lineTo(x * cellWidth, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= signals.length; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * cellHeight);
+      ctx.lineTo(canvas.width, y * cellHeight);
+      ctx.stroke();
+    }
+
+    // Signals
+    signals.forEach((signal, row) => {
+      const yBase = row * cellHeight + cellHeight / 2;
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      ctx.moveTo(0, yBase - signal.data[0] * 20);
+      for (let i = 1; i < cols; i++) {
+        const prevY = yBase - signal.data[i - 1] * 20;
+        const currY = yBase - signal.data[i] * 20;
+        ctx.lineTo(i * cellWidth, prevY);
+        ctx.lineTo(i * cellWidth, currY);
+      }
+      ctx.stroke();
+
+      if (row === currentSignal) {
+        ctx.strokeStyle = "red";
+        ctx.beginPath();
+        ctx.moveTo(cursorX * cellWidth, row * cellHeight);
+        ctx.lineTo(cursorX * cellWidth, (row + 1) * cellHeight);
+        ctx.stroke();
+      }
+    });
+  }
+
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / cellWidth);
+    const y = Math.floor((e.clientY - rect.top) / cellHeight);
+    if (y < 0 || y >= signals.length) return;
+
+    saveHistory();
+    currentSignal = y;
+    cursorX = x;
+
+    const prevVal = signals[y].data[x] || 0;
+    const newVal = 1 - prevVal;
+    for (let i = x; i < cols; i++) {
+      signals[y].data[i] = newVal;
+    }
+
+    drawWaveform();
+    updateWaveDrom();
+  });
+
+  document.getElementById("numSignals").addEventListener("change", (e) => {
+    const n = Math.min(Math.max(parseInt(e.target.value, 10), 1), 10);
+    createSignals(n);
+  });
+
+  document.getElementById("gridWidth").addEventListener("input", (e) => {
+    cellWidth = parseInt(e.target.value, 10);
+    drawWaveform();
+  });
+
+  document.getElementById("gridHeight").addEventListener("input", (e) => {
+    cellHeight = parseInt(e.target.value, 10);
+    canvas.height = signals.length * cellHeight;
+    drawWaveform();
+  });
+
+  document.getElementById("bgImageInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const img = new Image();
+      img.onload = () => {
+        backgroundImage = img;
+        drawWaveform();
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById("jsonBox").addEventListener("input", loadFromJsonBox);
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      if (history.length > 0) {
+        signals = history.pop();
+        document.getElementById("numSignals").value = signals.length;
+        canvas.height = signals.length * cellHeight;
+        drawWaveform();
+        updateWaveDrom();
+        e.preventDefault();
+      }
+    }
+  });
+
+  // Initialize
+  createSignals(2);
+  drawWaveform();
+  updateWaveDrom();
+</script>
+
+</body>
+</html>
