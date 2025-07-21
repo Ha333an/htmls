@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AD7674 SAR ADC Simulator (Signed)</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    label, input, button { display: block; margin: 10px 0; }
+    input[type="number"] { width: 150px; }
+    .output { margin-top: 20px; }
+    .code { font-family: monospace; font-size: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>AD7674 SAR ADC Simulator (18-bit Signed & Unsigned)</h1>
+
+  <label for="vinp">VINP (V):</label>
+  <input type="number" id="vinp" step="0.01" value="3.2">
+
+  <label for="vinn">VINN (V):</label>
+  <input type="number" id="vinn" step="0.01" value="0">
+
+  <label for="vref">VREF (V):</label>
+  <input type="number" id="vref" step="0.01" value="4">
+
+  <button onclick="convert()">Convert</button>
+
+  <div class="output">
+    <strong>Unsigned Output:</strong><br>
+    <span class="code">Binary:</span> <div id="binary" class="code">-</div>
+    <span class="code">Hex:</span> <div id="hex" class="code">-</div>
+
+    <br><strong>Signed Two’s Complement Output:</strong><br>
+    <span class="code">Binary:</span> <div id="signedBinary" class="code">-</div>
+    <span class="code">Hex_18bit:</span> <div id="signedHex" class="code">-</div>
+	<span class="code">Hex_16bit:</span> <div id="signedHex_16" class="code">-</div>
+  </div>
+
+  <script>
+    function toTwosComplement(value, bits) {
+      if (value < 0) {
+        value = (1 << bits) + value;
+      }
+      return value;
+    }
+
+    function convert() {
+      let vinp = parseFloat(document.getElementById('vinp').value);
+      let vinn = parseFloat(document.getElementById('vinn').value);
+      let vref = parseFloat(document.getElementById('vref').value);
+
+      let diff = vinp - vinn;
+
+      // Clamp within range
+      if (diff > vref) diff = vref;
+      if (diff < -vref) diff = -vref;
+
+      const N = 18;
+      const fullScale = Math.pow(2, N);
+      const maxCodeUnsigned = fullScale - 1;
+      const maxCodeSigned = Math.pow(2, N - 1) - 1;
+      const minCodeSigned = -Math.pow(2, N - 1);
+
+      // UNSIGNED CODE
+      let unsignedCode = Math.round(((diff + vref) / (2 * vref)) * maxCodeUnsigned);
+      unsignedCode = Math.max(0, Math.min(maxCodeUnsigned, unsignedCode));
+      let binUnsigned = unsignedCode.toString(2).padStart(N, '0');
+      let hexUnsigned = "0x" + unsignedCode.toString(16).toUpperCase().padStart(5, '0');
+
+      // SIGNED CODE (Two’s Complement)
+      let signedCode = Math.round((diff / vref) * maxCodeSigned);
+      signedCode = Math.max(minCodeSigned, Math.min(maxCodeSigned, signedCode));
+      let signedCodeTC = toTwosComplement(signedCode, N);
+      let binSigned = signedCodeTC.toString(2).padStart(N, '0');
+      let hexSigned = "0x" + signedCodeTC.toString(16).toUpperCase().padStart(5, '0');
+	  let hexSigned_16 = "0x" + (signedCodeTC/4 & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');;
+
+      // Update output
+      document.getElementById('binary').textContent = binUnsigned;
+      document.getElementById('hex').textContent = hexUnsigned;
+      document.getElementById('signedBinary').textContent = binSigned;
+      document.getElementById('signedHex').textContent = hexSigned;
+	  document.getElementById('signedHex_16').textContent = hexSigned_16;
+    }
+  </script>
+</body>
+</html>
