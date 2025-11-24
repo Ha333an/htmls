@@ -1,0 +1,40 @@
+body { font-family: Arial; margin: 0; padding-top: 120px; }
+
+#playerContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.sentence {
+    padding: 6px;
+    margin: 4px 0;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+}
+.sentence:hover { background: #f0f0f0; }
+.active { background: #fff3b0; border-left-color: orange; }
+
+#text {
+    padding: 20px;
+    padding-bottom: 120px; /* space for sticky translation */
+}
+
+#translation-box {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 10px;
+    background: #eef7ff;
+    border-left: 4px solid #3388ff;
+    display: none;
+    z-index: 1000;
+    font-size: 16px;
+}
