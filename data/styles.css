@@ -30,11 +30,11 @@ body { font-family: Arial; margin: 0; padding-top: 120px; }
     bottom: 0;             /* stays at the bottom */
     left: 0;
     right: 0;
-    padding: 20px 25px;    /* small padding like original */
+    padding: 20px 35px;    /* small padding like original */
     background: #eef7ff;
     border-left: 4px solid #3388ff;
     display: none;
-    z-index: 1000;
+    z-index: 2000;
     font-size: 16px;
     box-sizing: border-box; /* ensure padding doesn't break width */
 }
