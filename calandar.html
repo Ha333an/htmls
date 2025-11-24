@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fill Calendar with Tasks</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #calendar {
+            max-width: 900px;
+            margin: 20px auto;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Task Input and Calendar Filling</h1>
+
+    <h3>Enter Tasks (format: "title, hour, priority"):</h3>
+    <textarea id="taskInput" placeholder="Example:\nMeeting, 1, 5\nProject Review, 2, 4"></textarea>
+
+    <!-- Fill Calendar Button -->
+    <button onclick="fillCalendar()">Fill Calendar</button>
+
+    <!-- Calendar Container -->
+    <div id="calendar"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var calendarEl = document.getElementById('calendar');
+
+            // Initialize FullCalendar
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                selectable: true,
+                editable: true,
+                slotMinTime: '08:30:00', // Start at 08:30 AM
+                slotMaxTime: '17:30:00', // End at 05:30 PM
+                allDaySlot: false, // Remove all-day slot
+                businessHours: {
+                    // Enforce working hours: Monday to Friday, 08:30 to 17:30
+                    daysOfWeek: [1, 2, 3, 4, 5], // Monday to Friday
+                    startTime: '08:30', // Start of business hours
+                    endTime: '17:30' // End of business hours
+                },
+                selectConstraint: "businessHours", // Prevent selection outside business hours
+                events: [
+                    {
+                        title: 'Lunch Break',
+                        start: '2024-10-21T12:00:00',
+                        end: '2024-10-21T13:00:00',
+                        overlap: false,
+                        editable: false,
+                        color: '#f0e68c'
+                    }
+                ],
+                select: function (info) {
+                    var title = prompt('Enter Task Title:');
+                    if (title) {
+                        calendar.addEvent({
+                            title: title,
+                            start: info.startStr,
+                            end: info.endStr,
+                            allDay: info.allDay
+                        });
+                    }
+                    calendar.unselect();
+                }
+            });
+
+            // Render the calendar
+            calendar.render();
+
+            // Function to check if a time slot is available
+            function isSlotAvailable(startTime, endTime) {
+                var events = calendar.getEvents();
+                for (let event of events) {
+                    let eventStart = new Date(event.start);
+                    let eventEnd = new Date(event.end);
+
+                    // Check if the given time overlaps with an existing event
+                    if ((startTime >= eventStart && startTime < eventEnd) || (endTime > eventStart && endTime <= eventEnd)) {
+                        return false; // Time slot is already occupied
+                    }
+                }
+                return true; // Time slot is available
+            }
+
+            // Function to fill the calendar with sorted tasks
+            window.fillCalendar = function() {
+                let taskInput = document.getElementById('taskInput').value.trim();
+                if (!taskInput) {
+                    alert('Please enter tasks in the format "title, hour, priority".');
+                    return;
+                }
+
+                let tasks = taskInput.split('\n').map(line => {
+                    let [title, hour, priority] = line.split(',').map(item => item.trim());
+                    return { title, hour: parseFloat(hour), priority: parseInt(priority) };
+                });
+
+                tasks.sort((a, b) => b.priority - a.priority || a.hour - b.hour);
+
+                let startTime = new Date();
+                startTime.setHours(8, 30, 0, 0);  
+
+                tasks.forEach(task => {
+                    let endTime = new Date(startTime.getTime());
+                    endTime.setHours(startTime.getHours() + task.hour);
+
+                    while (!isSlotAvailable(startTime, endTime) || (startTime.getHours() === 12)) {
+                        startTime.setMinutes(startTime.getMinutes() + 30);
+                        endTime = new Date(startTime.getTime());
+                        endTime.setHours(startTime.getHours() + task.hour);
+                    }
+
+                    calendar.addEvent({
+                        title: task.title + ` (Priority: ${task.priority})`,
+                        start: startTime.toISOString(),
+                        end: endTime.toISOString()
+                    });
+
+                    startTime = new Date(endTime.getTime());
+                });
+
+                alert('Calendar filled with tasks based on priority and hours.');
+            };
+        });
+    </script>
+
+</body>
+</html>

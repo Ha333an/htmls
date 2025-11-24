@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VCD Viewer with WaveDrom (v1.9.1)</title>
+    <!-- Load WaveDrom and its skin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/1.9.1/skins/default.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/1.9.1/WaveDrom.min.js"></script>
+    <style>
+        #vcdView {
+            width: 100%;
+            height: 500px;
+            border: 1px solid black;
+            margin-top: 10px;
+            overflow: scroll;
+            white-space: nowrap;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>VCD Waveform Viewer</h1>
+
+    <!-- Input Text Area for VCD File Content -->
+    <textarea id="vcdInput" placeholder="Paste your VCD file content here"></textarea>
+
+    <!-- Button to Render the VCD -->
+    <button onclick="renderVCD()">Render VCD</button>
+
+    <!-- Div where the VCD waveform will be drawn -->
+    <div id="vcdView"></div>
+
+    <script>
+        function renderVCD() {
+            const vcdText = document.getElementById('vcdInput').value;
+            const parsedVCD = parseVCD(vcdText); // Custom parser for VCD data
+
+            // WaveDrom JSON object for waveform visualization
+            const waveDromData = {
+                signal: parsedVCD
+            };
+
+            // Clear existing content and render the waveform
+            document.getElementById('vcdView').innerHTML = '';  
+            const vcdContainer = document.createElement('div');
+            vcdContainer.setAttribute('id', 'wavedrom_render');
+            document.getElementById('vcdView').appendChild(vcdContainer);
+
+            // Render the waveform using WaveDrom
+            try {
+                WaveDrom.ProcessAll();  // Ensure that WaveDrom processes the waveform data
+                WaveDrom.RenderWaveForm(0, waveDromData, 'wavedrom_render');  // Render to the container
+            } catch (error) {
+                console.error("WaveDrom rendering error:", error);
+            }
+        }
+
+        // Simple VCD Parser (Minimal for demonstration)
+        function parseVCD(vcdText) {
+            const lines = vcdText.split('\n');
+            const signals = [];
+            let currentTime = 0;
+            let signalStates = {};
+
+            // Parse the VCD data
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('#')) {
+                    currentTime = parseInt(line.substring(1));
+                } else if (line.startsWith('b')) {
+                    const value = line.substring(1, 2);
+                    const signal = line.substring(2).trim();
+                    if (!signalStates[signal]) {
+                        signalStates[signal] = { name: signal, wave: '' };
+                        signals.push(signalStates[signal]);
+                    }
+                    signalStates[signal].wave += value === '1' ? '1' : '0';
+                }
+            });
+
+            // Extend the waveforms with idle states if needed
+            for (const signal in signalStates) {
+                signalStates[signal].wave += "z";
+            }
+
+            return signals;
+        }
+
+        // Example VCD content for demonstration purposes
+        const sampleVCD = `
+$timescale 1 ns $end
+$scope module logic $end
+$var wire 1 a signal_a $end
+$var wire 1 b signal_b $end
+$upscope $end
+$enddefinitions $end
+#0
+b0a
+b0b
+#10
+b1a
+#20
+b1b
+#30
+b0a
+#40
+b0b
+`;
+        document.getElementById('vcdInput').value = sampleVCD;
+    </script>
+</body>
+</html>

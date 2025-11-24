@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monaco Editor VHDL Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/monaco-editor/min/vs/editor/editor.main.css">
+    <style>
+        #editor {
+            height: 600px;
+            border: 1px solid #807272;
+        }
+    </style>
+</head>
+<body>
+    <div id="editor"></div>
+    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            monaco.languages.register({ id: 'vhdl' });
+            monaco.languages.setMonarchTokensProvider('vhdl', {
+                tokenizer: {
+                    root: [
+                        [/\b(abs|access|after|alias|all|and|architecture|array|assert|attribute|begin|block|body|buffer|bus|case|component|configuration|constant|disconnect|downto|else|elsif|end|entity|exit|file|for|function|generate|generic|group|guarded|if|impure|in|inertial|inout|is|label|library|linkage|literal|loop|map|mod|nand|new|next|nor|not|null|of|on|open|or|others|out|package|port|postponed|procedure|process|pure|range|record|register|reject|rem|report|return|rol|ror|select|severity|signal|shared|sla|sll|sra|srl|subtype|then|to|transport|type|unaffected|units|until|use|variable|wait|when|while|with|xnor|std_logic|std_logic_vector|length)\b/i, 'keyword'],
+                        [/[\w$]+/, 'identifier'],
+                        [/\".*?\"/, 'string'],
+                        [/\'.*?\'/, 'string'],
+                        [/(--.*$)/, 'comment'], // Single-line comments
+                    ]
+                }
+            });
+
+            monaco.editor.create(document.getElementById('editor'), {
+                value: 'entity example is\n  signal a : std_logic;\nend example;',
+                language: 'vhdl',
+                scrollbar: {
+		// Subtle shadows to the left & top. Defaults to true.
+		useShadows: false,
+
+		// Render vertical arrows. Defaults to false.
+		verticalHasArrows: true,
+		// Render horizontal arrows. Defaults to false.
+		horizontalHasArrows: true,
+
+		// Render vertical scrollbar.
+		// Accepted values: 'auto', 'visible', 'hidden'.
+		// Defaults to 'auto'
+		vertical: "visible",
+		// Render horizontal scrollbar.
+		// Accepted values: 'auto', 'visible', 'hidden'.
+		// Defaults to 'auto'
+		horizontal: "visible",
+
+		verticalScrollbarSize: 17,
+		horizontalScrollbarSize: 17,
+		arrowSize: 30,
+	},
+            });
+
+         // Function to simulate syntax check
+         function checkSyntax() {
+                const code = editor.getValue();
+                const errors = []; // Collect errors
+
+                // Simple example: Check for missing "END" for entities
+                if (!/END\s+\w+\s*;/.test(code)) {
+                    errors.push({ message: "Missing 'END' statement.", severity: monaco.MarkerSeverity.Error, startLineNumber: 5, startColumn: 1 });
+                }
+
+                // Clear existing markers
+                monaco.editor.setModelMarkers(editor.getModel(), 'owner', []);
+                // Set new markers
+                monaco.editor.setModelMarkers(editor.getModel(), 'owner', errors);
+            }
+
+            // Check syntax on editor change
+            editor.onDidChangeModelContent(function() {
+                checkSyntax();
+            });
+        });
+    </script>
+</body>
+</html>

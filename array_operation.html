@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Array Operations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        textarea, select, button {
+            margin: 10px 0;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Array Operations</h1>
+    
+    <!-- Larger input box for array data -->
+    <label for="arrayInput">Enter an array of floating point numbers (separated by comma, space, or newline):</label>
+    <textarea id="arrayInput" placeholder="e.g., 1.5, 2.3, 3.7&#10;or&#10;1.5 2.3 3.7"></textarea>
+    
+    <!-- Dropdown for operation selection -->
+    <label for="operation">Choose an operation:</label>
+    <select id="operation">
+        <option value="sum">Sum</option>
+        <option value="average">Average</option>
+    </select>
+
+    <!-- Button to perform the operation -->
+    <button onclick="performOperation()">Calculate</button>
+    
+    <!-- Display result -->
+    <h3>Result: <span id="result">N/A</span></h3>
+    
+    <script>
+        function performOperation() {
+            // Get array input and split into an array of floats using broader delimiters
+            const arrayInput = document.getElementById('arrayInput').value;
+            const array = arrayInput
+                .split(/[\s,]+/)  // Split by comma, space, or newline
+                .map(Number)      // Convert to numbers
+                .filter(n => !isNaN(n));  // Filter out invalid numbers
+
+            // Get selected operation
+            const operation = document.getElementById('operation').value;
+            
+            let result = 0;
+            if (operation === 'sum') {
+                result = array.reduce((a, b) => a + b, 0); // Sum operation
+            } else if (operation === 'average') {
+                result = array.reduce((a, b) => a + b, 0) / array.length; // Average operation
+            }
+
+            // Display result
+            document.getElementById('result').textContent = result;
+        }
+    </script>
+</body>
+</html>
