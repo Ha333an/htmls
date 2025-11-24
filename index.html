@@ -1,139 +1,126 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<title>no title</title>
-
-<link rel="stylesheet" href="data/styles.css">
+  <meta charset="utf-8">
+  <title>Encrypted page</title>
 </head>
 <body>
-
-<div id="playerContainer">
-
-    <!-- SELECT MENU -->
-    <select id="bookSelect" style="font-size:16px; padding:5px;">
-        <option value="1">Assepoester</option>
-        <option value="2">WillemTell</option>
-    </select>
-
-    <!-- AUDIO -->
-    <audio id="player" controls style="width: 100%; margin-top:10px;"></audio>
-</div>
-
-<div id="text"></div>
-<div id="translation-box"></div>
-
-<!-- DYNAMIC script placeholder -->
-<script id="storyScript"></script>
-
-<script src="data/functions.js"></script>
+  <div>
+    <input id="pw" type="password" placeholder="Enter password">
+    <button id="btn" onclick="attemptUnlock()">Unlock</button>
+  </div>
+  <div id="status"></div>
+  <div id="content" style="display:none"></div>
 
 <script>
-// -------------------- Display Text --------------------
-function displayText() {
-    const container = document.getElementById("text");
-    container.innerHTML = "";
+const tokenB64 = "R5EfPFdWTUNTHbDpVS5o3valTKk8elfE-Yqgt2ZRKyVzSTGVwEyVna9787kXMq0qMb-RmfzepmoqgFHnuAWoZHKXxWKlLBsVeAKEB-BgR3jtXtfeu-GDWOhhvCmFxecnQC7QyhEwS8VadTdcPriAb5AMNRZFxZokci5L-vJiNqxYwoUiPz2oKGHbeniEQ9tJDVJmSlTf69v-i0B_c714qmSxhbH47SEBtsjWo0qgOa7DqRXvJclkDod5NqN3JS4kFcpm_1Xhvx1N-9C68Yn2_rerx9559GoqTiJbKkZcLa6gYIxPcho_qEeMGpo_ouEgv3dYghAbLfjbmk4fmT-xiWP6VsazmCxjMgTYgkCIdzWk5C0-n8TqYUSdpTZqHkm1PnfjB-0YaDpXv2B6suRNm4ICowwMm8DXtVJA4vZfGNQ507EHL6nz6lMHcLJIB_WP0QsmpiR6_8ZeZPc9VYTPp9pZSOoxDLHNUZf6PUpx4zmpbiOqegXorl8ctfUPwWeKRUTQwysrW3zkNH6itBBGrtRUM_mV_mOjVQlhZW9C2_btxyl89HuF6EWli43kq2CfB612Skl8OZAUJmpOW1nNFY8tufOsncOCYLmrGmj6Rl0DqgoUmqA01ggv7iPKSIym0M3hLr502SNWQEqOCSSGy-Bhu1gfRPRX9B8aap_jEa1uWctqEMXy8c2CkHwccohowSp9WdzOBShyOxTpKcbe2szS24ecQnPqyZPpQUSuhk55mVMoLMnDbfY3YDB49rasKguydAEgettFh3E-cQwToYXmy_WWvKCKCvNPh42a3cBeVPIr-1c2WMqNYdNGZI11xDvJeZBseK7aSdbJG3GJ9nIm7XzbdtdCjehrwL7Ks5c8bR-aITFzfbEpj1C52qI3wrW5VARqITXHkQOCh3wmtq3zDBVe97XV8pHmu1LxDxCqdLm0YZbt98C0ZhEKa8-mcT9NXjXhpm_wmvB1kn_OalsoRWcGu2eEU4KkPoEHbI_biZObWJMdadKAHFuS_DQet3PqUCb_YYrFwUkloeg6plOgAAbuusS9F67G_Ovl7WeUIvecRh7pXe2TuiiXIiM1QOqg6NNJux9stMu9N2Kk1BQXfgxhuR77RiBxjP5jHQeAjSsmNhh3T8YAMZYQbjOEIOFk0zOxvj45byKBLB5qMOGYIou643zuhZEgpf1CQMwSnOc5u_WWO_T-X5KFcatr5KdJatcA52_iCf08Gbb8hyp5GozXtV7C2M6fD9Wl2WkOA0Dndmqx_5OWZotJh1IYCgD4BcXIXjI5n6pRXaw1BQ2z5j_k7PjXRv3xkkgBgaeF9dmOxS4EHZZYo-zEmBGy76e06jLMyCGGhtDxYt_X27Il1LfiT_a-NAvYmNH5GeuUhrMdcOTzAGEZCczB3f1KYlcc_8zqjbqq9IyaUBSz2VCFNg1Wkc4C4hcAVXFpXHzFQnFk0Qk1yTozsr4lgBeWd7gvNBXMlDqII4-TNM9jG5nZ1V-isnO10UN7Rv8VmokDbrw52XfV7JG_u0Vqh8EtogNqjH5TKy35Yv71Be7m2wJ4eiFLj3EIMtMmf18E00ZQVUMbivlQ0OF847JXGP3Ak7R9kbw5-W-Rw9zCZhoH4gTmyenhSkwwyn1iiUz1C_SM3bDnVoSkANMiAAYCsKvPvVC7FPsx4-4p8qkBQnf4VXpd-4Ip9A6_98yLiUoLPRrTEuZIwreli5P6UzB5CrXO6CejqJbCiXOYyQ1SSkFc42PGWIUMUwQnKXr1TqYCa3C7U3ISckcGF6BbQxFAMDWEYTEui85ceDvLhFFtnphI--3-5xpm4QQ-I8iYmMgZilM6PNY4uH4GsHONZaawo58eLNNAeOYkUnl70sbiXh4Xl4lw1ARfuE7rc-G9df4kYYKEcs_7hqkg_NysthtrRyE969oqemWBsl2m4O1TEwLZm60_Kwni_sntkOCzETOgbmwFnrDaKrpRCf0y0VJSpc_h-KOsYhZ6q1rmHTAxXqZzjsAFX1JAexgevJwkg07d07-6nrqwIKP6_Ef1TNHy0wjodb1Go5Io-MRH1F4BfKALbIgFdoydtsztmT-aOSeyUReTZy2A4a36MMkyItI4ohI5V7-HdAdkjbvmAt3DkrEAAu1dWCGnknIoDjppa9YYOP6PbSUFJw1hQPlpr47gbbspRXuze4zHNGf-nC6btLprXtl-O1wUvD-ZcqMLRwAdvssmbFQ8Nm84eaVl2jch1Ti59R3SDJhyt91c__f06RkbhyijKNfz449l9DrO8AKTbE75AfGgsRbQu7B1ng9PG-ZVp3eiFICHvms0wZBz6-0SgHbRO144X-5r42oD3tpxy2KLTzz9db8MGZ4NB-yhKM7WpY43e7NyOymSQhgKA4_36lY8xJl3cmeSntwFM8XNCSwftKJgbaaDiKO6wXvN7gIErhWO3qsdqSBzl2HDbywy7tTRVgMvU51a77xw7a8l46T_ds1L5Uzrg6WjfZ8f5mMgNudDFjhNUrDJXSSS82VwztyversO_0bkuL-aG3oqlpcVEt4IAAs9Vmd5lcr7m_zXy2OaaPiJZ_bXSwwEG94J4mEK2Wydfmq7CyFSPe3BRq-Rhk20w1FI-yW35j_IqM1eC00c-bEi_YnOQ-CHg3SEDTToX2o71a_Mq5Ngj8cmztTAegL2yrKx0HLb2JYuX2Rgvr2dxGYauPkKgwb2xLFmkx7OvMewH4uQ2SkGoykc_v84anpPcwbTPt9wOEyEstAhziM-1UufNP7Nl6gS14MueLqDMpKaHhDE1UM4STQ5yc-niaoeVNTOW_fzrNf5hFQMoUHIcWvqU7ANn_bapaL3Dr26CmzJNKzfBG01Rs9dnPQF4LsU4-6wLUYY-90sHbVOs-Ncl6bDg-eoUxLTBfB0SPY1Gns_M3EPK82lhskpsiv4sbDQITciUHsf4ou3it4jdofadfhaPvuOaPYhKGdte8V6Ry_YvYnULmoO6qDmfknKy8gEhINvKhRYkEO16AVtqUeEFgpRLu7ljZNmJbB7XdtS6ZZ2AqYvuGI6EozlerqL66LFsAB6KfAVp2VNg582fqsYxbyFesYqYRzaCL7nQcXC4bHUhBn0b-NPEbYnI_4VtV3LCEfqGYOHJvUpz6snXR1Q_l9P13WWtuqRgIGCRYwn71J5rMuXmUw4wpQA42tBletG9YJP88S0HGAOAX_9HjegemyXCvsv_7STk1z_siVFF3Bf4aVZ-CsJEFesd8aHZp1jJB-C0NqQYYFklcHmpbiHSAw8tzxSkHHMx-CHgeGRS5MOylO6CLLXFSqLkThr_kKZdTnb9-J93TfHM4cY4XhF0OwxnDVV9Hc329MMl_pLPOzkt5n07HSlxON4xWNZ2x6VXSwnAVb-qOpTPnPiX2s5pjp_oWgLymI05ceY3DF6QjT9g2Fe-SOhs64uJz64gyKZQcDnRwtuyaVmDZCEGDFOC2ateNwcvq-GXuUfhlQUvJYUOjmnWTuSLzjTEWbbpbjaMIxUUWAtf8UTo6xDUlVOUNCpHuaFDIWNetuVSiAQJ4X55FwJmPq6HKqvTWJsxgHPQ9Y3TQcexXSdJxihVCyFo8hMAGzPpGPYMDUNNyy8BNgSOVrhsKh_FIPuvjBt2t-ueFM0I2UjBwRPD8tnnqpmNLVk6TVTn-VPAlwuFVfo3ucXvO3lu1LFunHDxfqEl_02x4VhjGfT0oK9WPponc8AmwUuOPCoC1Guw17M9GtcPI81L41jWaJZeTXQGDLppO3mt37Os8EzYTQTSJUYeGrg0facNubrMtJnxGVuMUFzepGrJoE5dnLhFrfg-oGVlnpdoU3zK7Da0gUZ-YcbwXJ9eip5LGLgMk0nC1byYcZ5blaf3DWBXgvJ_HBylrflj3cqVfaRNskuiwo_sBhhzHE41uGbx5t3PcJAav3Uu-NTE2MED_WY5LV2hMa6ER0TBOE6FYiK2mHqMIac7dwP3Dg6PYmkxJ3Uu8CvpbuW-lr7pXvZX73OrOwzBLG9bjzbEpCABAPux8A0imz4ffIiQs-a1X6KRc-Nx4484NAKW5Fw_7Za7Z07J_qCs5xxDn1r-RC2NNVT8v8qjwAkwST69uobIJokPcv5x8SNuMURiLZ-Mu2_fw4ZjApIHfNESZyNDSvTxbWdRKp8vJHBqNbYbijbb3bdCAXGviv8XOKZgMpncEMTwd053GNpmYSkAwHH2OPo_glSQZfQRQyywXGpy7tuEfzBzKSif-9_49BiqvXNCxjFfGSzixSZSlwSPe9yf3oWl3u-60MmnxL34r_O-X5dvaX2uWGuE4VvRoTtRBqkOzOOtGm-MRNyp9Vnmp9k_8-MoKG2l8IKHhFAa-KQBQZMJMPaN5XkLXEE76X-u5tCKB0R6Lkzbk5t_4H0M_WsWNd6tTSOR01slRToGQ5sZMp3mTpQzQP-sCI9rs1eWy0y79gEz_qYBZOmn7OEuYINq4c8phJMvYcMzrf5Eo8dVcxaFokvp6sgHFFLJj4mgJtWEnFi0lHKNVzUcdj2GySyXpNkS7GfVsv1-uAkxnj4lI8ZXSp_iOaRQQ5q0BYrLK_WnAi-lqgsm9KMS8MGpEEeHPo_a8sp4oflN2GaGrwZy2UvOkmE605dKGYTUQVInu0Eu9Zv86WOiZDgz7TcK2VX93fvpNEjPza-J1wF62Mx4y-rWBykTe2DLJTiYxN4hZFC-LUVPQNllOcI4asTGmBfYZa19hkm9YPw4Y0UJUPfOODEPHERtH3Er7qGfog8QLZxK20hupbVpwhdjnm9CGQd-pgY5RkgVIl35hW5o37mTuPK556l6BvIaYOdsN6W9EG6exoL9kfWxH9A4rFP8gdsl7GiWyFYKq3dr7N5Vsg6mzcrnsTZBcOvefplCtrA_mjtCMQGxH-Y-TeJsANugbbMjQzUD8wy8D8GxcnKNDsmCXrFA3iIOpVeydR4AiovZc3TV-HH"; // embedded encrypted payload (iv + ciphertext)
+function b64UrlToUint8Array(s) {
+  // base64 urlsafe -> normal base64
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  // add padding
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
 
-    cues.forEach((c, i) => {
-        const p = document.createElement("p");
-        p.className = "sentence";
-        p.id = "s" + i;
-        p.textContent = c.text;
+async function deriveKey(password) {
+  // SHA-256(password) -> raw 32 bytes used as AES-GCM key
+  const pwUtf8 = new TextEncoder().encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', pwUtf8);
+  // import raw key for AES-GCM
+  return crypto.subtle.importKey('raw', hash, {name:'AES-GCM'}, false, ['decrypt']);
+}
 
-        p.addEventListener("click", () => {
-            const audio = document.getElementById("player");
-            audio.currentTime = c.start;
-            audio.play();
-            highlightSentence(i);
-            scrollToSentence(i);
-            showTranslation(i);
-        });
+async function attemptUnlock() {
+  const pw = document.getElementById('pw').value || '';
+  const status = document.getElementById('status');
+  status.textContent = 'Trying...';
+  try {
+    const key = await deriveKey(pw);
+    const token = b64UrlToUint8Array(tokenB64);
+    const iv = token.slice(0, 12); // first 12 bytes
+    const cipher = token.slice(12); // rest = ciphertext || tag
+    const plainBuf = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv }, key, cipher
+    );
+    const decoded = new TextDecoder().decode(plainBuf);
 
-        container.appendChild(p);
+    // Parse decrypted HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(decoded, 'text/html');
+
+    // Optionally set a <base> so relative URLs in decrypted HTML resolve correctly.
+    // By default we set it to the current page location (encrypted_page.html).
+    // If your content.html and encrypted_page.html live in different directories,
+    // set base.href accordingly (e.g. "data/").
+    let baseEl = doc.querySelector('base');
+    if (!baseEl) {
+      baseEl = doc.createElement('base');
+      // Set base to current page. Change this if your content assets are located elsewhere.
+      baseEl.href = location.href;
+      doc.head.insertBefore(baseEl, doc.head.firstChild);
+    }
+
+    // Inject CSS <link> tags from decrypted HTML into real document head
+    const links = doc.querySelectorAll('link[rel="stylesheet"]');
+    links.forEach(l => {
+      try {
+        const newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        // resolve href relative to base
+        newLink.href = new URL(l.getAttribute('href'), baseEl.href).href;
+        document.head.appendChild(newLink);
+      } catch(e) { console.warn('CSS link error', e); }
     });
-}
 
-// -------------------- Sync Audio → Text --------------------
-document.getElementById("player").addEventListener("timeupdate", function() {
-    const t = this.currentTime;
+    // Insert the body content into our content container
+    const contentEl = document.getElementById('content');
+    // Clear previous content
+    contentEl.innerHTML = '';
+    // Move nodes from parsed doc.body into the content container
+    Array.from(doc.body.childNodes).forEach(node => {
+      // For scripts and links we'll handle them separately below, but append now so relative elements appear.
+      contentEl.appendChild(document.importNode(node, true));
+    });
 
-    for (let i = 0; i < cues.length; i++) {
-        if (t >= cues[i].start && t <= cues[i].end) {
-            highlightSentence(i);
-            scrollToSentence(i);
-            showTranslation(i);
-            break;
-        }
+    // Execute scripts: find <script> tags inside the inserted content and re-create them so they run.
+    const insertedScripts = contentEl.querySelectorAll('script');
+    for (const oldScript of insertedScripts) {
+      const newScript = document.createElement('script');
+
+      if (oldScript.src) {
+        // Resolve src relative to base and add cache buster to avoid caching if needed
+        const srcResolved = new URL(oldScript.getAttribute('src'), baseEl.href).href;
+        newScript.src = srcResolved + '?v=' + Date.now();
+        newScript.async = false; // preserve execution order
+        // append to body so it loads and executes
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+        // wait for it to load before continuing to ensure order
+        await new Promise((resolve, reject) => {
+          newScript.onload = resolve;
+          newScript.onerror = () => { console.warn('Script load failed', newScript.src); resolve(); };
+        });
+      } else {
+        // Inline script: copy text and replace so it executes
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+        // inline executes immediately on insertion
+      }
     }
-});
 
-// -------------------- Highlight --------------------
-function highlightSentence(index) {
-    document.querySelectorAll(".sentence").forEach(el => el.classList.remove("active"));
-    const el = document.getElementById("s" + index);
-    if (el) el.classList.add("active");
+    // Now decrypted content inserted and scripts executed.
+    contentEl.style.display = 'block';
+    document.getElementById('pw')?.remove();
+    document.getElementById('btn')?.remove();
+    document.getElementById('status')?.remove();
+
+  } catch (e) {
+    console.error(e);
+    status.textContent = 'Wrong password or decryption failed.';
+  }
 }
-
-// -------------------- Auto Scroll --------------------
-function scrollToSentence(index) {
-    const el = document.getElementById("s" + index);
-    if (!el) return;
-
-    const rect = el.getBoundingClientRect();
-    if (rect.top < 150 || rect.bottom > window.innerHeight) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-}
-
-// -------------------- Show Translation --------------------
-function showTranslation(index) {
-    const box = document.getElementById("translation-box");
-    const line = cues[index];
-    if (!line || !line.text_trans) {
-        box.style.display = "none";
-        return;
-    }
-    box.textContent = line.text_trans;
-    box.style.display = "block";
-}
-/* -------------------------
-   Load selected story
--------------------------- */
-function loadStory(baseName) {
-    document.title = baseName;
-
-    // Set audio source
-    const audio = document.getElementById("player");
-    audio.src = "data/" + baseName;
-
-    // Remove old script
-    let oldScript = document.getElementById("storyScript");
-    if (oldScript) oldScript.remove();
-
-    // Create a fresh script tag
-    let newScript = document.createElement("script");
-    newScript.id = "storyScript";
-    newScript.src = "data/" + baseName + ".js?v=" + Date.now();
-
-    // Wait for story script to load, then display text
-    newScript.onload = () => {
-        console.log("Loaded:", newScript.src);
-        displayText();
-    };
-
-    document.body.appendChild(newScript);
-}
-
-
-// Select menu
-document.getElementById("bookSelect").addEventListener("change", function() {
-    loadStory(this.value);
-	console.log(this.value);
-});
-
-// Load default story on first load
-loadStory("1");
 </script>
-
 </body>
 </html>
