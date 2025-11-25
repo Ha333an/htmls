@@ -23,18 +23,19 @@ body { font-family: Arial; margin: 0; padding-top: 120px; }
 #text {
     padding: 20px;
     padding-bottom: 120px; /* space for sticky translation */
+	font-size: 2vw;   /* auto-scales based on screen width */
 }
 
 #translation-box {
     position: fixed;
-    bottom: 0;             /* stays at the bottom */
+    bottom: 0;
     left: 0;
     right: 0;
-    padding: 20px 35px;    /* small padding like original */
+    padding: 20px 35px;
     background: #eef7ff;
     border-left: 4px solid #3388ff;
     display: none;
     z-index: 2000;
-    font-size: 16px;
-    box-sizing: border-box; /* ensure padding doesn't break width */
+    font-size: 2vw;   /* auto-scales based on screen width */
+    box-sizing: border-box;
 }
