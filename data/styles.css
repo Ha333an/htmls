@@ -45,7 +45,7 @@
 #text {
     padding: 20px;
     padding-bottom: 120px; /* space for sticky translation */
-	font-size: 2vw;   /* auto-scales based on screen width */
+	font-size: 4vw;   /* auto-scales based on screen width */
 }
 
 #translation-box {
