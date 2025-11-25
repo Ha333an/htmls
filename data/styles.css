@@ -58,6 +58,6 @@
     border-left: 4px solid #3388ff;
     display: none;
     z-index: 2000;
-    font-size: 2vw;   /* auto-scales based on screen width */
+    font-size: 4vw;   /* auto-scales based on screen width */
     box-sizing: border-box;
 }
