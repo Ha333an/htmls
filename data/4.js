@@ -356,7 +356,7 @@ cues = [
   {
     "start": 276.7,
     "end": 286.7,
-    "text": "Maar u hebt toch een slee,\" zei Heidi en ze keek zo verdrietig dat grootvader mopperend naar de schuur liep en zijn Bte lioutcn slee te voorschijn haalde.",
+    "text": "Maar u hebt toch een slee,\" zei Heidi en ze keek zo verdrietig dat grootvader mopperend naar de schuur liep en zijn groote houden slee te voorschijn haalde.",
     "text_trans": "\"But you have a sleigh,\" said Heidi, and she looked so sad that Grandfather walked grumblingly to the barn and took out his first sled."
   },
   {
