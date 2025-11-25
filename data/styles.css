@@ -1,4 +1,26 @@
-body { font-family: Arial; margin: 0; padding-top: 120px; }
+
+
+#pw {
+    width: 80vw;            /* input width = 80% of screen */
+    padding: 3vw;           /* padding scales with screen */
+    font-size: 4vw;         /* text scales */
+    margin: 2vw;
+}
+
+#btn {
+    padding: 3vw 5vw;       /* responsive button size */
+    font-size: 4vw;
+    margin: 2vw;
+}
+
+#status {
+    font-size: 4vw;         /* status text also scales */
+    margin: 2vw;
+}
+
+#content {
+    font-size: 4vw;         /* decrypted page text also readable */
+}
 
 #playerContainer {
     position: fixed;
