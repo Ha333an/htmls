@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dutch → English Translator</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+  textarea { width: 100%; height: 150px; font-size: 16px; padding: 10px; }
+  #translation { margin-top: 20px; font-size: 18px; padding: 10px; border: 1px solid #ccc; min-height: 100px; }
+</style>
+</head>
+<body>
+
+<h2>Dutch → English Translator</h2>
+<textarea id="inputText" placeholder="Type or paste Dutch text here..."></textarea>
+<div id="translation">Translation will appear here...</div>
+
+<script>
+const input = document.getElementById("inputText");
+const output = document.getElementById("translation");
+const WORKER_URL = "https://ancient-butterfly-4e57-ai-nl-en.hassan-raith.workers.dev/";
+
+let timeout;
+input.addEventListener("input", () => {
+    clearTimeout(timeout);
+    const text = input.value.trim();
+    if (!text) {
+        output.textContent = "Translation will appear here...";
+        return;
+    }
+    // Delay slightly to avoid too many requests while typing
+    timeout = setTimeout(() => {
+        fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+        })
+        .then(res => res.json())
+        .then(data => {
+            output.textContent = data.translation || "Error: no translation";
+        })
+        .catch(err => {
+            output.textContent = "Error: " + err.message;
+        });
+    }, 300); // 300ms debounce
+});
+</script>
+
+</body>
+</html>
