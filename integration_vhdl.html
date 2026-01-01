@@ -50,7 +50,7 @@
       }
 
       // Define a generic Node Template that binds to port arrays
-      myDiagram.nodeTemplate =
+      myDiagram.nodeTemplateMap.add("Module",
         $(go.Node, "Auto",
           { 
             locationSpot: go.Spot.Center,
@@ -114,7 +114,37 @@
               new go.Binding("itemArray", "outports")
             )
           )
-        );
+        ));
+
+      myDiagram.nodeTemplateMap.add("TopInput",
+        $(go.Node, "Spot",
+          { locationSpot: go.Spot.Center },
+          $(go.Panel, "Auto",
+            $(go.Shape, "RoundedRectangle", { fill: "lightblue", stroke: "gray" }),
+            $(go.TextBlock, { margin: 5 }, new go.Binding("text", "name"))
+          ),
+          $(go.Shape, "Rectangle", { 
+              width: 8, height: 8, fill: "orange", stroke: null, 
+              alignment: go.Spot.Right, 
+              portId: "out", 
+              fromLinkable: true, toLinkable: false, cursor: "pointer" 
+          })
+        ));
+
+      myDiagram.nodeTemplateMap.add("TopOutput",
+        $(go.Node, "Spot",
+          { locationSpot: go.Spot.Center },
+          $(go.Panel, "Auto",
+            $(go.Shape, "RoundedRectangle", { fill: "lightcoral", stroke: "gray" }),
+            $(go.TextBlock, { margin: 5 }, new go.Binding("text", "name"))
+          ),
+          $(go.Shape, "Rectangle", { 
+              width: 8, height: 8, fill: "orange", stroke: null, 
+              alignment: go.Spot.Left, 
+              portId: "in", 
+              fromLinkable: false, toLinkable: true, cursor: "pointer" 
+          })
+        ));
 
       function importVHDLModule(e, obj) {
         var input = document.createElement('input');
@@ -253,6 +283,24 @@
         diagram.commitTransaction("addPort");
       }
 
+      function addTopPort(diagram, type) {
+        diagram.startTransaction("add top port");
+        var name = prompt("Enter port name:", type === "TopInput" ? "clk" : "result");
+        if (!name) {
+            diagram.commitTransaction("add top port");
+            return;
+        }
+        var portType = prompt("Enter port type:", "std_logic");
+        if (!portType) portType = "std_logic";
+
+        diagram.model.addNodeData({
+            type: type,
+            name: name,
+            key: name, 
+            portType: portType
+        });
+        diagram.commitTransaction("add top port");
+      }
 
 
 
@@ -293,6 +341,14 @@
         $("ContextMenuButton",
           $(go.TextBlock, "Import VHDL Module"),
           { click: importVHDLModule }
+        ),
+        $("ContextMenuButton",
+          $(go.TextBlock, "Add Top-Level Input"),
+          { click: function(e, obj) { addTopPort(e.diagram, "TopInput"); } }
+        ),
+        $("ContextMenuButton",
+          $(go.TextBlock, "Add Top-Level Output"),
+          { click: function(e, obj) { addTopPort(e.diagram, "TopOutput"); } }
         )
       );
 
@@ -323,6 +379,59 @@
 
     window.addEventListener('DOMContentLoaded', init);
 
+function autoConnect() {
+    myDiagram.startTransaction("Auto Connect");
+    
+    let sources = [];
+    let destinations = [];
+
+    // Identify all ports
+    myDiagram.nodes.each(function(node) {
+        if (node.data.type === "TopInput") {
+            sources.push({ name: node.data.name, node: node, portId: "out" });
+        } else if (node.data.type === "TopOutput") {
+            destinations.push({ name: node.data.name, node: node, portId: "in" });
+        } else if (node.data.type === "Module") {
+            if (node.data.outports) {
+                node.data.outports.forEach(p => {
+                    sources.push({ name: p.name, node: node, portId: p.name });
+                });
+            }
+            if (node.data.inports) {
+                node.data.inports.forEach(p => {
+                    destinations.push({ name: p.name, node: node, portId: p.name });
+                });
+            }
+        }
+    });
+
+    // Connect matching names
+    sources.forEach(src => {
+        destinations.forEach(dst => {
+            if (src.name === dst.name) {
+                // Check for existing link to avoid duplicates
+                let exists = false;
+                src.node.findLinksOutOf(src.portId).each(link => {
+                    if (link.toNode === dst.node && link.toPortId === dst.portId) {
+                        exists = true;
+                    }
+                });
+
+                if (!exists) {
+                    myDiagram.model.addLinkData({
+                        from: src.node.key,
+                        fromPort: src.portId,
+                        to: dst.node.key,
+                        toPort: dst.portId
+                    });
+                }
+            }
+        });
+    });
+
+    myDiagram.commitTransaction("Auto Connect");
+}
+
 function exportVHDL() {
     // Initialize VHDL code with standard library imports
     let vhdlCode = `-- Generated VHDL Code\nlibrary IEEE;\nuse IEEE.STD_LOGIC_1164.ALL;\n\n`;
@@ -331,38 +440,19 @@ function exportVHDL() {
     vhdlCode += `entity TopModule is\n`;
     vhdlCode += `  port (\n`;
 
-    // Identify ports that are connected internally
-    let connectedPorts = new Set();
-    myDiagram.links.each(function(link) {
-        connectedPorts.add(link.fromNode.key + "." + link.fromPortId);
-        connectedPorts.add(link.toNode.key + "." + link.toPortId);
-    });
-
-    // Collect ports for the top-level entity (only unconnected ones)
-    let allPorts = {};
+    // Generate port declarations for the top entity based on TopInput/TopOutput nodes
+    let topPorts = [];
     myDiagram.nodes.each(function(node) {
-        if (node.data.type === 'Module') {
-            const ports = getPortsFromNode(node);
-            ports.forEach(function(port) {
-                // Check if this specific port instance is connected
-                if (!connectedPorts.has(node.key + "." + port.name)) {
-                    // Create a unique name for the top-level port to avoid collisions
-                    // e.g., InstanceName_PortName
-                    let topPortName = node.key + "_" + port.name;
-                    allPorts[topPortName] = {
-                        direction: port.direction,
-                        type: port.type
-                    };
-                }
-            });
+        if (node.data.type === "TopInput") {
+            topPorts.push({ name: node.data.name, dir: "in", type: node.data.portType || "std_logic" });
+        } else if (node.data.type === "TopOutput") {
+            topPorts.push({ name: node.data.name, dir: "out", type: node.data.portType || "std_logic" });
         }
     });
 
-    // Generate port declarations for the top entity
-    let portEntries = Object.entries(allPorts);
-    portEntries.forEach(([name, port], index) => {
-        let separator = index < portEntries.length - 1 ? ';' : '';
-        vhdlCode += `    ${name} : ${port.direction} ${port.type}${separator}\n`;
+    topPorts.forEach((port, index) => {
+        let separator = index < topPorts.length - 1 ? ';' : '';
+        vhdlCode += `    ${port.name} : ${port.dir} ${port.type}${separator}\n`;
     });
 
     vhdlCode += `  );\n`;
@@ -381,12 +471,14 @@ function exportVHDL() {
     // Signal declarations
     let signals = {};
     myDiagram.links.each(function(link) {
-        const fromPort = link.fromPortId;
-        const toPort = link.toPortId;
-        const signalName = `${link.fromNode.key}_${fromPort}_to_${link.toNode.key}_${toPort}`;
-        const sourceNodeData = link.fromNode.data;
-        const sourcePort = sourceNodeData.ports.find(p => p.name === fromPort);
-        signals[signalName] = sourcePort ? sourcePort.type : 'std_logic';
+        if (link.fromNode.data.type === "Module" && link.toNode.data.type === "Module") {
+            const fromPort = link.fromPortId;
+            const toPort = link.toPortId;
+            const signalName = `${link.fromNode.key}_${fromPort}_to_${link.toNode.key}_${toPort}`;
+            const sourceNodeData = link.fromNode.data;
+            const sourcePort = sourceNodeData.ports.find(p => p.name === fromPort);
+            signals[signalName] = sourcePort ? sourcePort.type : 'std_logic';
+        }
     });
 
     vhdlCode += "\n-- Signal Declarations\n";
@@ -448,14 +540,15 @@ function instantiateComponent(moduleData) {
     ports.forEach((port, index) => {
         const separator = index < ports.length - 1 ? ',' : '';
         
-        // Default to top-level port name if unconnected
-        let signalName = moduleData.key + "_" + port.name; 
+        let signalName = "open"; 
 
         myDiagram.links.each(function(link) {
             if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
-                signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+                if (link.toNode.data.type === "TopOutput") signalName = link.toNode.data.name;
+                else if (link.toNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
             } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
-                signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+                if (link.fromNode.data.type === "TopInput") signalName = link.fromNode.data.name;
+                else if (link.fromNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
             }
         });
 
@@ -477,6 +570,7 @@ function instantiateComponent(moduleData) {
         <button id="SaveButton" onclick="save()">Save</button>
         <button onclick="load()">Load</button>
         <button onclick="exportVHDL()">Export VHDL</button>
+        <button onclick="autoConnect()">Auto Connect</button>
 
         Diagram Model saved in JSON format:
       </div>
@@ -485,8 +579,8 @@ function instantiateComponent(moduleData) {
       "copiesArrays": true,
       "copiesArrayObjects": true,
       "nodeCategoryProperty": "type",
-      "linkFromPortIdProperty": "frompid",
-      "linkToPortIdProperty": "topid",
+      "linkFromPortIdProperty": "fromPort",
+      "linkToPortIdProperty": "toPort",
       "nodeDataArray": [
     ],
       "linkDataArray": [
