@@ -566,6 +566,43 @@
         diagram.commitTransaction("highlight");
       }
 
+      // Property Inspector Listener
+      myDiagram.addDiagramListener("ChangedSelection", function(e) {
+        var inspector = document.getElementById("inspectorContent");
+        var sel = e.diagram.selection.first();
+        if (sel instanceof go.Link) {
+            var fromNode = sel.fromNode;
+            var fromPortId = sel.fromPortId;
+            var toNode = sel.toNode;
+            var toPortId = sel.toPortId;
+            
+            var type = "Unknown";
+            
+            if (fromNode) {
+                var nodeData = fromNode.data;
+                if (nodeData.type === "TopInput") {
+                    type = nodeData.portType;
+                } else if (nodeData.ports) {
+                    var portInfo = nodeData.ports.find(function(p) { return p.name === fromPortId; });
+                    if (portInfo) type = portInfo.type;
+                }
+            }
+            
+            inspector.innerHTML = "<b>Link Selected</b><br/>" +
+                                  "From: " + fromNode.key + " (" + fromPortId + ")<br/>" +
+                                  "To: " + toNode.key + " (" + toPortId + ")<br/>" +
+                                  "Type: " + type;
+        } else if (sel instanceof go.Node) {
+            var data = sel.data;
+            inspector.innerHTML = "<b>Node Selected</b><br/>" +
+                                  "Key: " + data.key + "<br/>" +
+                                  "Entity: " + (data.entityName || "N/A") + "<br/>" +
+                                  "Type: " + data.type;
+        } else {
+            inspector.innerHTML = "Select an item to view details";
+        }
+      });
+
       load();
     }
     function save() {
@@ -590,6 +627,9 @@ function autoConnect() {
 
     // Identify all ports
     myDiagram.nodes.each(function(node) {
+        // Ignore internal components (nodes inside a group)
+        if (node.containingGroup !== null) return;
+
         if (node.data.type === "TopInput") {
             sources.push({ name: node.data.name, node: node, portId: node.data.name });
         } else if (node.data.type === "TopOutput") {
@@ -766,7 +806,13 @@ function instantiateComponent(moduleData) {
 
 
   <div id="sample">
-    <div id="myDiagramDiv" style="border: solid 1px black; width: 100%; height: 600px"></div>
+    <div style="display: flex; width: 100%;">
+      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
+      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
+          <h3>Inspector</h3>
+          <div id="inspectorContent">Select an item to view details</div>
+      </div>
+    </div>
 
     <div>
       <div>
