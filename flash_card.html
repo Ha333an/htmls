@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcards</title>
+    <style>
+        /* Center alignment for all content */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            text-align: center;
+        }
+        #flashcard {
+            width: 600px;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 24px;
+            text-align: center;
+            margin: 20px auto;
+            transition: background-color 0.3s ease;
+        }
+        /* Different colors for front and back sides */
+        .front {
+            background-color: #FFD700; /* Gold color for front */
+            color: #333;
+        }
+        .back {
+            background-color: #4CAF50; /* Green color for back */
+            color: #fff;
+        }
+        #controls, textarea, button {
+            margin-top: 10px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 12px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Flashcard Viewer</h1>
+        
+        <!-- Input Text Area -->
+        <textarea id="input" rows="5" cols="50" placeholder="Enter flashcards in 'front; back' format (one per line)"></textarea>
+        <br>
+        <button onclick="loadFlashcards()">Load Flashcards</button>
+
+        <!-- Flashcard Display -->
+        <div id="flashcard" onclick="flipCard()">Click to Flip</div>
+        
+        <!-- Navigation Controls -->
+        <div id="controls">
+            <button onclick="prevCard()">Previous</button>
+            <button onclick="nextCard()">Next</button>
+        </div>
+    </div>
+
+    <script>
+        let flashcards = [];  // Array to store the flashcards
+        let currentIndex = 0; // Current flashcard index
+        let showingFront = true; // Track if front side is showing
+
+        // Load flashcards from input
+        function loadFlashcards() {
+            const input = document.getElementById("input").value;
+            flashcards = input.split('\n').map(line => {
+                const [front, back] = line.split(';');
+                return { front: front.trim(), back: back.trim() };
+            }).filter(card => card.front && card.back); // Filter out incomplete cards
+            currentIndex = 0;
+            showingFront = true;
+            displayCard();
+        }
+
+        // Display the current flashcard
+        function displayCard() {
+            const flashcardDiv = document.getElementById("flashcard");
+            if (flashcards.length > 0) {
+                const card = flashcards[currentIndex];
+                flashcardDiv.innerText = showingFront ? card.front : card.back;
+                flashcardDiv.className = showingFront ? "front" : "back";
+            } else {
+                flashcardDiv.innerText = "No flashcards loaded";
+                flashcardDiv.className = ""; // Reset styling if no flashcards are loaded
+            }
+        }
+
+        // Flip the card
+        function flipCard() {
+            showingFront = !showingFront;
+            displayCard();
+        }
+
+        // Navigate to previous card, looping back if at the beginning
+        function prevCard() {
+            currentIndex = (currentIndex - 1 + flashcards.length) % flashcards.length;
+            showingFront = true;
+            displayCard();
+        }
+
+        // Navigate to next card, looping back if at the end
+        function nextCard() {
+            currentIndex = (currentIndex + 1) % flashcards.length;
+            showingFront = true;
+            displayCard();
+        }
+
+        // Delete the current card
+        function deleteCard() {
+            if (flashcards.length > 0) {
+                flashcards.splice(currentIndex, 1); // Remove the current card
+                if (currentIndex >= flashcards.length) {
+                    currentIndex = 0; // Loop back to the first card if deleting the last card
+                }
+                showingFront = true;
+                displayCard();
+            }
+        }
+
+        // Add event listener for key presses
+        document.addEventListener('keydown', (event) => {
+            switch (event.code) {
+                case 'Space':
+                    event.preventDefault(); // Prevent scrolling on space bar press
+                    flipCard();
+                    break;
+                case 'ArrowLeft':
+                    prevCard();
+                    break;
+                case 'ArrowRight':
+                    nextCard();
+                    break;
+                case 'Delete':
+                    deleteCard();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

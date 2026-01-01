@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wavedrom to VHDL Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        textarea, pre {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wavedrom to VHDL Converter</h1>
+
+    <!-- Input for Wavedrom JSON -->
+    <h3>Enter Wavedrom JSON</h3>
+    <textarea id="wavedromInput" placeholder="Paste your Wavedrom JSON here"></textarea>
+
+    <!-- Button to trigger VHDL generation -->
+    <button onclick="generateVHDL()">Generate VHDL</button>
+
+    <!-- Output for generated VHDL code -->
+    <h3>Generated VHDL Code</h3>
+    <pre id="vhdlOutput" contenteditable="true"></pre>
+
+    <!-- Button to export VHDL as a file -->
+    <button onclick="exportVHDL()">Export as VHDL File</button>
+
+    <script>
+        // Function to generate dynamic VHDL from Wavedrom
+        function generateVHDL() {
+            const wavedromInput = document.getElementById('wavedromInput').value;
+
+            // Parse Wavedrom JSON
+            let wavedromData;
+            try {
+                wavedromData = JSON.parse(wavedromInput);
+            } catch (error) {
+                alert('Invalid Wavedrom JSON');
+                return;
+            }
+
+            const signals = wavedromData.signal || [];
+
+            if (signals.length === 0) {
+                alert('No signals found in the Wavedrom data');
+                return;
+            }
+
+            // Create dynamic state machine VHDL based on Wavedrom signals
+            let vhdlCode = `
+-- Generated VHDL Code for Waveform
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity WaveformStateMachine is
+    Port ( clk : in STD_LOGIC;
+           reset : in STD_LOGIC;
+           output_signal : out STD_LOGIC);
+end WaveformStateMachine;
+
+architecture Behavioral of WaveformStateMachine is
+    type state_type is (
+`;
+
+            // Step 1: Define states based on signal transitions
+            const states = [];
+            signals.forEach(signal => {
+                const name = signal.name || 'unknown_signal';
+                const wave = signal.wave || '';
+
+                for (let i = 0; i < wave.length; i++) {
+                    const stateName = `S_${name}_${i}`;
+                    states.push(stateName);
+                }
+            });
+
+            // Add all states to VHDL
+            vhdlCode += states.join(', ') + ');\n';
+
+            vhdlCode += `    signal state : state_type := ${states[0]};\n`;
+
+            // Step 2: Add process and state transitions based on Wavedrom waveform
+            vhdlCode += `
+begin
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            state <= ${states[0]};
+        elsif rising_edge(clk) then
+            case state is\n`;
+
+            // Step 3: Define transitions for each state based on waveform data
+            let stateIndex = 0;
+            signals.forEach(signal => {
+                const wave = signal.wave || '';
+                for (let i = 0; i < wave.length; i++) {
+                    const stateName = `S_${signal.name || 'unknown_signal'}_${i}`;
+                    const nextState = i + 1 < wave.length ? `S_${signal.name || 'unknown_signal'}_${i + 1}` : states[0]; // Loop back after final state
+
+                    vhdlCode += `                when ${stateName} =>\n`;
+                    vhdlCode += `                    -- Perform actions for ${stateName}\n`;
+                    vhdlCode += `                    state <= ${nextState};\n`;
+                }
+                stateIndex++;
+            });
+
+            // Close the VHDL process
+            vhdlCode += `
+                when others =>
+                    state <= ${states[0]};
+            end case;
+        end if;
+    end process;
+end Behavioral;
+`;
+
+            // Display the generated VHDL
+            document.getElementById('vhdlOutput').innerText = vhdlCode;
+        }
+
+        // Function to export VHDL as a .vhdl file
+        function exportVHDL() {
+            const vhdlCode = document.getElementById('vhdlOutput').innerText;
+            const blob = new Blob([vhdlCode], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'waveform_state_machine.vhdl';
+            link.click();
+        }
+    </script>
+</body>
+</html>

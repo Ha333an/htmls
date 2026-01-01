@@ -1,0 +1,67 @@
+body {
+    font-family: "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+    margin: 0;
+    padding-top: 120px;
+    padding-bottom: 160px;
+}
+
+#pw {
+    width: 80vw;            /* input width = 80% of screen */
+    padding: 3vw;           /* padding scales with screen */
+    font-size: 4vw;         /* text scales */
+    margin: 2vw;
+}
+
+#btn {
+    padding: 3vw 5vw;       /* responsive button size */
+    font-size: 4vw;
+    margin: 2vw;
+}
+
+#status {
+    font-size: 4vw;         /* status text also scales */
+    margin: 2vw;
+}
+
+#content {
+    font-size: 4vw;         /* decrypted page text also readable */
+}
+
+#playerContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.sentence {
+    padding: 6px;
+    margin: 4px 0;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+}
+.sentence:hover { background: #f0f0f0; }
+.active { background: #fff3b0; border-left-color: orange; }
+
+#text {
+    padding: 20px;
+    padding-bottom: 120px; /* space for sticky translation */
+	font-size: 4vw;   /* auto-scales based on screen width */
+}
+
+#translation-box {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 40px 35px;
+    background: #eef7ff;
+    border-left: 4px solid #3388ff;
+    z-index: 2000;
+    font-size: 4vw;   /* auto-scales based on screen width */
+    box-sizing: border-box;
+}

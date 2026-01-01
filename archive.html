@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Encrypted Proxy Browser</title>
+<style>
+  body { font-family: Arial; margin: 20px; }
+  iframe { width: 100%; height: 90vh; border: 1px solid #888; }
+</style>
+</head>
+<body>
+
+<input id="urlBox" type="text" style="width:60%" placeholder="Enter website URL...">
+<button onclick="loadPage()">Go</button>
+
+<hr>
+
+<iframe id="view" sandbox="allow-same-origin allow-popups"></iframe>
+
+<script>
+const WORKER = "https://frosty-sea-8cd7.hassan-raith.workers.dev/?enc=";
+
+/*** ENCRYPT / DECRYPT (simple XOR + Base64, safe for URL) ***/
+function encrypt(str, key = 42) {
+    return btoa([...str].map(ch => 
+        String.fromCharCode(ch.charCodeAt(0) ^ key)
+    ).join(""));
+}
+
+function decrypt(encoded, key = 42) {
+    return [...atob(encoded)].map(ch =>
+        String.fromCharCode(ch.charCodeAt(0) ^ key)
+    ).join("");
+}
+function ensureHttps(url) {
+    // If url doesn't start with http:// or https://, prepend https://
+    if (!/^https?:\/\//i.test(url)) {
+        url = "https://" + url;
+    }
+
+    urlBox.value = url; // Update the input box
+    return url; // Return the full URL if needed
+}
+
+/*** LOAD PAGE INTO IFRAME ***/
+function loadPage() {
+    let inputUrl = document.getElementById("urlBox").value.trim();
+    inputUrl=ensureHttps(inputUrl)
+    if (!inputUrl) return alert("Enter a URL");
+
+    const encrypted = encrypt(inputUrl);
+
+    const proxyUrl = WORKER + encodeURIComponent(encrypted);
+
+    const iframe = document.getElementById("view");
+    iframe.src = proxyUrl;
+}
+</script>
+
+</body>
+</html>

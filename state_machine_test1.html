@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>State Machin 1 Test</title>
+    <!-- Include GoJS libraries -->
+    <script src="https://gojs.net/latest/release/go.js"></script>
+    <style>
+        /* Define CSS for the state machine */
+        .state-machine {
+            width: 600px;
+            height: 400px;
+            border: 1px solid #ccc;
+            margin: 50px auto;
+        }
+        .node {
+            stroke: black;
+            fill: none;
+            stroke-width: 2px;
+            font-size: 16px;
+        }
+        .link {
+            stroke: blue;
+            stroke-width: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="stateMachine" class="state-machine">
+        <div id="startNode">Start</div>
+        <div id="endNode">End</div>
+        <div id="machineType">Automatic</div>
+        <div id="transitionTypes">All transition types allowed</div>
+    </div>
+
+    <script src="stateMachine.js"></script>
+
+    <script type="text/javascript">
+        // Define GoJS model
+        var model = new go.GraphModel();
+
+        // Create nodes and links in the model
+        model.addNode('startNode');
+        model.addNode('endNode');
+        model.addEdge('startToEnd', 'startNode', 'endNode', 1);
+
+        // Add state machine to the model
+        model.add(go.StateMachine, {
+            type: "Automatic",
+            autoStart: true,
+            initial: "startNode"
+        });
+
+        // Load the model into the container element
+        var svgContainer = document.getElementById('stateMachine');
+        new go.Graph(svgContainer, model);
+
+        // Event handler for node click
+        document.addEventListener('click', function(event) {
+            var clickedNode = event.target;
+            if (clickedNode.tagName === 'div') {
+                var stateName = clickedNode.id;
+                var nextState = clickedNode.getAttribute('data-next-state');
+                if (stateName && nextState !== 'endNode' && nextState !== 'startNode') {
+                    // Update the transition type
+                    var transitionTypeField = document.getElementById('transitionTypes');
+                    transitionTypeField.value = nextState;
+
+                    // Move to the new state
+                    model.transitionToState(stateName);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

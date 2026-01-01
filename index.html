@@ -1,62 +1,126 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Index Page</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            height: 100vh;
-            margin: 0;
-        }
-        #sidebar {
-            width: 250px;
-            background-color: #f4f4f4;
-            padding: 10px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        #content {
-            flex: 1;
-            padding: 10px;
-            overflow: auto;
-        }
-        #sidebar a {
-            display: block;
-            padding: 10px;
-            text-decoration: none;
-            color: #333;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            transition: background-color 0.3s;
-        }
-        #sidebar a:hover {
-            background-color: #ddd;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>Encrypted page</title>
 </head>
 <body>
-    <div id="sidebar">
-        <a href="waveform.html" target="contentFrame">Waveform Editor</a>
-		<a href="vhdl2verilog.html" target="contentFrame">VHDL to Verilog</a>
-        <a href="verilog2vhdl.html" target="contentFrame">Verilog to VHDL</a>
-        <a href="vhdl2testbench.html" target="contentFrame">VHDL to Testbench</a>
-        <a href="integration_vhdl.html" target="contentFrame">Integration of Vhdl components</a>
-        <a href="Increment_array_index.html" target="contentFrame">Digit Increment Tool</a>
-        <a href="reformat_text.html" target="contentFrame">Reformat Tool</a>
-        <a href="binary2hex.html" target="contentFrame">Binary to Hex</a>
-        <a href="state_machine.html" target="contentFrame">StateMachine 2 Vhdl</a>
-        <a href="https://wavedrom.com/editor.html" target="contentFrame">Wavedrom</a>
-        <a href="http://raczben.pythonanywhere.com/" target="contentFrame">VCD viewer</a>
-        <a href="plot_csv.html" target="contentFrame">Plot from CSV</a>
-        <a href="filter_csv.html" target="contentFrame">Filter rows of CSV</a>
-        <a href="filter_text.html" target="contentFrame">Filter Text with Regex</a>
-        
-        
-    </div>
-    <div id="content">
-        <iframe name="contentFrame" style="width: 100%; height: 100%; border: none;"></iframe>
-    </div>
+  <div>
+    <input id="pw" type="password" placeholder="Enter password">
+    <button id="btn" onclick="attemptUnlock()">Unlock</button>
+  </div>
+  <div id="status"></div>
+  <div id="content" style="display:none"></div>
+
+<script>
+const tokenB64 = "VgdDvX2VQGDyPy_2ctmJEZejy_K842V9ocIohIyKmBWyMMoHG2hi_wcGZw2zSexxRzw_qyhRaRahFGtKL_GDMc-FlcA0jUofH00jFpeTs_n6QSN1ZzIReqUxthgCZ9-7m4I7SYnMTKIONmxfSnwbR93IWc25YzB2vX_4UC-LCyb_wSzFQ80DC8Q-9DUzq9-ti-VAaQN1Qy2X2Fnx71xpRjMcPScY32DutluFttuv1DN5kWI2OCZIMC7pCkDX5B6fSuUq8iK1GrXLSvX7wbz8rUllx5dCVTJcw1LahkntleYvSzoxmNMHbSdUhoHQ76Q8-SM9KQLv9ruN2h6fbMwB3Ekc7aBc5uAnt2huKPL0ywCo87-1MXeo3U8KB97m9dRRicYyfqdcdVgLW4zCvOFBQrzGGIrZVWDbrOKkp_Gq3pFes02b27CkUCN9LqG6B3Y9XlAR0GiViqrL0PopSxGj07PlT-D8JCJydJmjImCFiarHtcHSL-H4S5IWrn3uU1Z2xGYIn8ti_KXKth2E6I13szJQQhgwXG_wQbAoIpQ3LFkxzMGRGagIBBkAy0xFRXJeOzecdAME-tZESRe9EGMMiSEtxTQmWew2hUu6jluWKvKEJxwTmjgZV2M3ERV2GphcTWw3X_s28VXvSw9TGG4XV1f-qEg7o6dw6fRFqVZHNVieQeDMorixLPHy73x-q97Qj28h-gMucJirWfZqjSq-urpbg5oVUpZUOQU1rUHT-BAmXG2gkTtKyruKtCwJ9xKUFip3NOsnV8aO2cbzg6b3XGE9BDXcOjkTDGfzrqr5sHKruP6dBfeC9qbio9K3bPcqDl4QVcANCO2Yu8jwMVxA1oz582JhUg2zplQ75PMaILjzjB4oN92fZBmmt1B9R9Dad8T8Q4d9U2IvbwZWVL8NQlsKMhZc_o4PUAaeWQq_Xqr5NGdXOX0PkfW8HPc8I0IfIxmb8EQmBSAygiatBRrruyvw-ogEkbWRrU2d5wIOB4Bo2bofDULdZr0u_VznMM60VEXpxzzDecP2M7fI3uK3Z99Qm_r3MltDytMM12Q6Q2BY5b7dI-JCzv_dd3ZVyPrHBy8lkqQM2lcXq4hIUMocIzeWMraeACTt_dQikKOHeknaeC1imb-qp2N0sqOPZ_tMxFKj3hy3ww6Cchly4jbosVjbUi5sZg-yP6nTy4XwjtJSboL6pwWAgsNCQb_PyIR6HUbq6wJIYCKYYi886I81vTafv4fRyRmdiMqZaEMb6d5J6E-YoZJpzMWZdoCYo-S9FAfYey6c0zJJZvyfhqiqc7Q8---L5DOz9LxMFLWCmkSelL4oaYFaSgbcaE0z3DsoyQWUjcQM2OfITEyfSWgLPfncijkekRKeNtaru9Qq0ZrDGkXjc2BO3xgQ81PED24GaWM_tUi5bTODQZwKowI91t7uznBZr5jgToqqO4xued_iRAoQjnaqwa8fATyOYXjOu9O3I4VNaefM2E5JR4mc1zEcNYFH633wPgKfmbFXVpLZJa3jIz9EBgBDRiwTNi18pvBolMao7oAxcnkqEHuQK3pAyXmG_vWhRkP4rLSG4jRGpJkpBtP4cJBlQBX5-tVgeMRyoxRqPO2y4RUgwG4PpMZcNWvwwP__dksH8egCBaThcNhp7RIPecgvedMZjsAfGLMWmCNrY1Dk1nHBVUdb5s6s3_i7xkBEu-eIdkRWm3gYv83sXRUCQfvCQJ6HCgctN-IyPhRfO0s_PZz9k6WcKQlxy8aVtcNeEU4BgnAT7GmPUC89S9HasH6dTnB31IfvTHx4K54zRnfiPkHrUOzunutprQTnGBO4pKw8kVd31aLRqZhc5AdzMCJbLzb8270xpVUc5V_9-ot6ufqXgxORp6Q47OEEup5137cwQ5i0nYXt0l-eydDFVoj7yGAoCdjNRQzNJ6HmVwCxLIdeXsUvfViysTeOsw00NfiLsVFw9n3ce9jCmO2rr6HlPjuetTk8NnKxJQQh3MnMYK2D8N20qovTqarFV90bmMNuVtIHoX0Glv31G017SuLINScKDlHUC51aRGB-0a38uYWJXlf__6YmDJWn_EjCFz5O9PCp_w-eauuWDeR_XGJng1y62FLkUPpdtCqQ4LyKq3Lt7TdGrctyh8KTqW9y283N9VPGMNT-6reFFxU2cS_LvybRSvoVlVIg-eDnA-BiU0t9a_mYqPwMqePYN2A0iSapdXnVh4UXwkGYC21SAtZe2bvCckefKgBPMHoefphp2uUULFOELy0yQGHKsIdcaerGmb81eAhO0Wp5glBM85J0H46aEA8o0lml0guPEU8o0FwBgHQcV-zkpc0MVcGYyM06xh0u5O9oyhlmzwopod2MxwD9Kgk1UZY5ZtNqOqOQyQO-BCpKU__iEn9oLA9WcUY9-nBy1BEmIftKoLYDXg2_KBY1POOkHhitK5CO8qZD8cbQx_ELxVR7Y0LXyoF9d6BJoit29p1wz-QQZmFWlJVFn-Kr9eN3lzBfr8H41XIqyRJpAXD9781SqUs2P2GFsqUfNoCJqVLUfl4zqkU-Tdi4VsZSfwb04P_EqPQSOfF5MYZRx8vFmH7EJqahqm015WP1i2bgRUiSBEmgqYvZtDhfURO069euCI3iN7uSkP84fYeZ2QTAPqHYdnhx0GOgMbtLTnMhgCafuWhwnWTxNcMv5SGZLDjYfaXtmTC5WYY06e_82qMtqYOpsEZHmi0cfSoNmJ1t1sRHkof-dy-Fb7z_4AegH0NCBHkBm16WRKNJn-gpuVdUrPvV5cc4vvjOQwBjoJVZulnvJE15cBxR3aw8E38fGBv7GsLdbvr2fh3M0yG0omNBWSPfxBB0Ur-dv9lYDfU70bYSY7AdsViBvGZb3LKrLzU7eRppD1vg7fvxRTYM2XrdvTSKI1LZnZyGGfy_xghk-uue95t7aawQrSYtuQw8gUyyFfztiXyzUg3GXwg096hzJhq8JhnC6ATyXOJw6mewkW9PckMTsL3kB_ufNASpq1ucBU098Uq8BtY3_RLCdzAhbinTpUo30L3k9TOEJoXKqrw72hpHVGOrd-CPuj8743C0OhVjEPCHBNg1y42y27IqpJURPeqlsU6Fjj0jSZM2RGEpW1a0Zcz4mh8JzIij_ItLcZzCw0dHfs8OGjQpPvTkPfqJhdcLcTjCzQbjq_KPArtwbswDWFCD_ZZZkfnF488CH_6RZo_3a2iFCjoE2PuVg_Ak4zB5oLXNNWR4bkpuLI7mtnXHZ9RYibcc5QNe4E_yLuj_E8mFh6r-7nRFH0mSlwh_OikMce0Ukoc3GiOacB_7oPheE2MDT9jkOqLD8PVVZrNp5Yj8rpKdoxxLoAN1-fdVs9aahH-XaaL5N3tUemdErtLmfeT-vxDfLwfomgVeOINMZZTU59tTLVjTIzUxlDaIEMyDtQm_e_zA9FXy_KhB7eJ47JKg4VKbXz1zp9kJWCGzKrjMlrjEi6CHLEUx-ISDVfWgd06jM_0uZVv1OGsrgnfvtT-v0UHzjSeL2d_YbrbF8sHHkJI-leJohLQGSNelNlmzPjpTCutvSjO3gCPJffYlVNMH5eAaaE_YJECEMzT-8HeZMFKWPYclbWpmCakWcj95jxmVdhre_2d-ChZxJkd1LNRFdJIzbzsFr4pKQiQeRR3YIWxG6eC78-tW1ToMvrKep-5aZR7AyjrvsR2_m6tryTKHdLzkb09o_qDjlpUbT9ugzMttN6v6mMIyZUiIS8mlcufZg_TBtVObRHwV1EHei5o8WjeXikFm6BfAYq0nRh-3yBzlVbXGtazAKoFdnQ4JvZO7J0dIAUKRWkYgFvkQsWwxmvZxCp8BIzxmuSDx9Dstgn66RQiXePsvrauRwcpUgfltJ2mFs9OokQKxnWtEDgwS_W4PdyPYQTnKLM4BQokH1cTtgCgt9YEu1Xy-fvCr51F75FfkzxPitgU8MnIOtYriUHe1Ft8LA3JhYJOyzgpI2CubrF67zbbRTchM0aJSKC_5ZJnGHlQLveoN0waZgkWGnzYIAgoj12LUr62WvuLzkjXMrINQoWwXIEofhY2kyUwHoYatoA5TB_Qe4ByJzzxjUTMHcPKIeKVtNI1D3FrKs3FTZC7W8MakOPMI6SeW-UWhdNhORD5IGzpeA0OI6tKTDgDI9anNkGYB0Cmd2wH_8soIg1ibb6jnp3jeNAHf2fefiD_JAw3SI4w5giut6IKnDToVWfDHDwEa9Zlu_mCJxhjlDnJ-udOQ_jyZrEcwt8I-VpOT0IGLAjb8OGTJRdzTHWVTRGcS3HqyCXBIr3J8JDr3G4AHwMXp942sr1hKY2ap5MSk7qPCCgQmMCTl4WOnn1287w5vlUCqOJNhjX7M2k6WunFIptYH6FZosUJvDMCudgTbhzsjZU-49_xaBQk6NSBSq0mDkYB8JXK_xux69X-dkAOybfqYXt-3SGSWzgyOxI8UfVrEOG-AzTW27jxaPeln4VppBiDlRwUIq59dP0nKY8Y8rfJRBCdonFiOJPiIZ1PeyXw9YvLq-vOLk6PJULsJmXl8-GfhqsC6vIjZx9PBbfQZ1xrYCLI8tQB-hiRDqJdieZ66QKx1UHn2EumIYk9hHJ8tZ5UbBaXzl87nFIm3lV4THTSZK8L7FxEY_5lab7HLxRp9ZPFp-CTwAjIgScm8ki1B9lDYeSJgL3IRUby4vzsPBSpnqVk8ufOI9TRBDBms8nzLW_qA6OLuyoyXCYAvR5Ug_1HYJNv5-FrPP-ZjVDwA1DTf2XU9xsfDpOwptMvTRe2KqHaOzPpP2NOw5nn-Yl1yvOUbCBsyA5Ycy8huS9hk_8k_81Kkh8qKGlAfxOOaas184VHYOOXXBd_p3F1hUKOhg0oxzy4xtzIxrcwvXbZpZ65B3RNGy27Y4E7ucF9qFjK2fGyfKRwoz-uJemExJm3uznCKv4NpBpy6-hkrku9cjoi9FwJ7gGkk9WTae3QieKapv0B9rYnjGynPNmB9uavSoFkHnWzCgHat0-R77hN-PItnaPQbc7pvP8W44aeCCOm-i501n2T7QFHrw4ixaLxDh_jCq51kATGCsh9EVX4VBP3V3YlxZahnftc9Drd_Tg0sYzlKcaG97lriBaJ3BDUDnSSynkuuID_cmgwEE9Vgv7qtVQQleqSWjiLSkzKRqtSVe6YezIW5R8QfU-UPAwx5UKsYVjL-KO-tMaYIg9EvpNH2i54aEZzlzhVRhP8LUW33wT9mz7Q5MAGmmnYkEMhDrwDC4c60q_as9Y9QR6J1PFrWCnz5vzYyKy7iJRBBW_NbVshz6iqRYfZ6REF5RJox5Q2x9EXls7dxjWfdysb1fc6RK1fX2BLFtX0ZnQdrNa0ZFnOj-XW6zZav1jkRpdwcL0BrAt9fO1cwUepTeQPiMDtM2JLJVp_ImXo3LsdVT9wzBXolaz0FCET_q9Y9Mkhv4PDMzom5ni9cropos6KF-PwWrAhTOEAcEobHzplFb-mEfEDkOTMw-ZlRJ3ac0gxKqjicfMum_s3Zq70msg=="; // embedded encrypted payload (iv + ciphertext)
+function b64UrlToUint8Array(s) {
+  // base64 urlsafe -> normal base64
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  // add padding
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+async function deriveKey(password) {
+  // SHA-256(password) -> raw 32 bytes used as AES-GCM key
+  const pwUtf8 = new TextEncoder().encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', pwUtf8);
+  // import raw key for AES-GCM
+  return crypto.subtle.importKey('raw', hash, {name:'AES-GCM'}, false, ['decrypt']);
+}
+
+async function attemptUnlock() {
+  const pw = document.getElementById('pw').value || '';
+  const status = document.getElementById('status');
+  status.textContent = 'Trying...';
+  try {
+    const key = await deriveKey(pw);
+    const token = b64UrlToUint8Array(tokenB64);
+    const iv = token.slice(0, 12); // first 12 bytes
+    const cipher = token.slice(12); // rest = ciphertext || tag
+    const plainBuf = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv }, key, cipher
+    );
+    const decoded = new TextDecoder().decode(plainBuf);
+
+    // Parse decrypted HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(decoded, 'text/html');
+
+    // Optionally set a <base> so relative URLs in decrypted HTML resolve correctly.
+    // By default we set it to the current page location (encrypted_page.html).
+    // If your content.html and encrypted_page.html live in different directories,
+    // set base.href accordingly (e.g. "data/").
+    let baseEl = doc.querySelector('base');
+    if (!baseEl) {
+      baseEl = doc.createElement('base');
+      // Set base to current page. Change this if your content assets are located elsewhere.
+      baseEl.href = location.href;
+      doc.head.insertBefore(baseEl, doc.head.firstChild);
+    }
+
+    // Inject CSS <link> tags from decrypted HTML into real document head
+    const links = doc.querySelectorAll('link[rel="stylesheet"]');
+    links.forEach(l => {
+      try {
+        const newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        // resolve href relative to base
+        newLink.href = new URL(l.getAttribute('href'), baseEl.href).href;
+        document.head.appendChild(newLink);
+      } catch(e) { console.warn('CSS link error', e); }
+    });
+
+    // Insert the body content into our content container
+    const contentEl = document.getElementById('content');
+    // Clear previous content
+    contentEl.innerHTML = '';
+    // Move nodes from parsed doc.body into the content container
+    Array.from(doc.body.childNodes).forEach(node => {
+      // For scripts and links we'll handle them separately below, but append now so relative elements appear.
+      contentEl.appendChild(document.importNode(node, true));
+    });
+
+    // Execute scripts: find <script> tags inside the inserted content and re-create them so they run.
+    const insertedScripts = contentEl.querySelectorAll('script');
+    for (const oldScript of insertedScripts) {
+      const newScript = document.createElement('script');
+
+      if (oldScript.src) {
+        // Resolve src relative to base and add cache buster to avoid caching if needed
+        const srcResolved = new URL(oldScript.getAttribute('src'), baseEl.href).href;
+        newScript.src = srcResolved + '?v=' + Date.now();
+        newScript.async = false; // preserve execution order
+        // append to body so it loads and executes
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+        // wait for it to load before continuing to ensure order
+        await new Promise((resolve, reject) => {
+          newScript.onload = resolve;
+          newScript.onerror = () => { console.warn('Script load failed', newScript.src); resolve(); };
+        });
+      } else {
+        // Inline script: copy text and replace so it executes
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+        // inline executes immediately on insertion
+      }
+    }
+
+    // Now decrypted content inserted and scripts executed.
+    contentEl.style.display = 'block';
+    document.getElementById('pw')?.remove();
+    document.getElementById('btn')?.remove();
+    document.getElementById('status')?.remove();
+
+  } catch (e) {
+    console.error(e);
+    status.textContent = 'Wrong password or decryption failed.';
+  }
+}
+</script>
 </body>
 </html>
