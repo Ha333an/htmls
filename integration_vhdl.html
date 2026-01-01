@@ -83,7 +83,7 @@
                     $(go.Panel, "Horizontal",
                       { 
                         margin: new go.Margin(2, 0, 2, 2), alignment: go.Spot.Left,
-                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: true, cursor: "pointer" 
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: isGroup, cursor: "pointer" 
                       },
                       new go.Binding("portId", "name"),
                       $(go.Shape, { width: 10, height: 10, stroke: null },
@@ -102,7 +102,7 @@
                     $(go.Panel, "Horizontal",
                       { 
                         margin: new go.Margin(2, 2, 2, 0), alignment: go.Spot.Right,
-                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: true, cursor: "pointer" 
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: isGroup, fromLinkable: true, cursor: "pointer" 
                       },
                       new go.Binding("portId", "name"),
                       $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
