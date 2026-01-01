@@ -357,14 +357,36 @@
         routing: go.Routing.Orthogonal,
         corner: 25,
         relinkableFrom: true,
-        relinkableTo: true
+        relinkableTo: true,
+        mouseEnter: function(e, link) { highlightNet(link, true); },
+        mouseLeave: function(e, link) { highlightNet(link, false); }
       },
-        $(go.Shape, { stroke: 'gray', strokeWidth: 2 }),
-        $(go.Shape, { stroke: 'gray', fill: 'gray', toArrow: 'Standard' }),
+        $(go.Shape, { stroke: 'gray', strokeWidth: 2 },
+          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "gray").ofObject(),
+          new go.Binding("strokeWidth", "isHighlighted", h => h ? 3 : 2).ofObject()),
+        $(go.Shape, { stroke: 'gray', fill: 'gray', toArrow: 'Standard' },
+          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "gray").ofObject(),
+          new go.Binding("fill", "isHighlighted", h => h ? "red" : "gray").ofObject()),
         $(go.TextBlock, 
           { segmentOffset: new go.Point(0, -10), font: "10pt sans-serif", stroke: "black", background: "white" },
-          new go.Binding("text", "fromPort"))
+          new go.Binding("text", "fromPort"),
+          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "black").ofObject(),
+          new go.Binding("font", "isHighlighted", h => h ? "bold 12pt sans-serif" : "10pt sans-serif").ofObject())
       );
+
+      function highlightNet(link, show) {
+        var diagram = link.diagram;
+        diagram.startTransaction("highlight");
+        var fromNode = link.fromNode;
+        var fromPortId = link.fromPortId;
+        if (fromNode) {
+            fromNode.findLinksOutOf(fromPortId).each(function(l) {
+                l.isHighlighted = show;
+                l.layerName = show ? "Foreground" : "";
+            });
+        }
+        diagram.commitTransaction("highlight");
+      }
 
       load();
     }
