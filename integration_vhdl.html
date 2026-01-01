@@ -126,9 +126,9 @@
           $(go.Shape, "Rectangle", { 
               width: 8, height: 8, fill: "orange", stroke: null, 
               alignment: go.Spot.Right, 
-              portId: "out", 
               fromLinkable: true, toLinkable: false, cursor: "pointer" 
-          })
+          },
+          new go.Binding("portId", "name"))
         ));
 
       myDiagram.nodeTemplateMap.add("TopOutput",
@@ -141,9 +141,9 @@
           $(go.Shape, "Rectangle", { 
               width: 8, height: 8, fill: "orange", stroke: null, 
               alignment: go.Spot.Left, 
-              portId: "in", 
               fromLinkable: false, toLinkable: true, cursor: "pointer" 
-          })
+          },
+          new go.Binding("portId", "name"))
         ));
 
       function importVHDLModule(e, obj) {
@@ -413,9 +413,9 @@ function autoConnect() {
     // Identify all ports
     myDiagram.nodes.each(function(node) {
         if (node.data.type === "TopInput") {
-            sources.push({ name: node.data.name, node: node, portId: "out" });
+            sources.push({ name: node.data.name, node: node, portId: node.data.name });
         } else if (node.data.type === "TopOutput") {
-            destinations.push({ name: node.data.name, node: node, portId: "in" });
+            destinations.push({ name: node.data.name, node: node, portId: node.data.name });
         } else if (node.data.type === "Module") {
             if (node.data.outports) {
                 node.data.outports.forEach(p => {
