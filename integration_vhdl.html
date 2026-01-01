@@ -49,72 +49,101 @@
         return type && type.toLowerCase().indexOf("vector") >= 0;
       }
 
-      // Define a generic Node Template that binds to port arrays
-      myDiagram.nodeTemplateMap.add("Module",
-        $(go.Node, "Auto",
-          { 
-            locationSpot: go.Spot.Center,
-            contextMenu: $("ContextMenu",
+      function makeTemplate(typename, isGroup, background) {
+          var nodeType = isGroup ? go.Group : go.Node;
+          
+          // Header Panel (Title + Expander)
+          var headerPanel = $(go.Panel, "Vertical",
+            { row: 0, column: 0, columnSpan: 3, alignment: go.Spot.Center, margin: new go.Margin(0, 0, 10, 0) }
+          );
+          
+          if (isGroup) {
+            headerPanel.add($("SubGraphExpanderButton", { margin: 2 }));
+          }
+          
+          headerPanel.add($(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "white" },
+                  new go.Binding("text", "entityName")));
+          headerPanel.add($(go.TextBlock, { margin: 2, font: "italic 10pt sans-serif", stroke: "white" },
+                  new go.Binding("text", "key")));
+
+          // Table Panel
+          var tablePanel = $(go.Panel, "Table",
+              { 
+                margin: 0, 
+                defaultAlignment: go.Spot.Top, 
+                stretch: go.GraphObject.Fill 
+              },
+              $(go.RowColumnDefinition, { column: 1, minimum: 50 }),
+              headerPanel,
+              // Input Ports (Left side)
+              $(go.Panel, "Vertical",
+                { row: 1, column: 0, alignment: go.Spot.Left, itemArray: [] },
+                new go.Binding("itemArray", "inports"),
+                { itemTemplate: 
+                    $(go.Panel, "Horizontal",
+                      { 
+                        margin: new go.Margin(2, 0, 2, 2), alignment: go.Spot.Left,
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: true, cursor: "pointer" 
+                      },
+                      new go.Binding("portId", "name"),
+                      $(go.Shape, { width: 10, height: 10, stroke: null },
+                        new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Circle"),
+                        new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange")),
+                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 0, 0, 5), stroke: "white" },
+                        new go.Binding("text", "name"))
+                    )
+                }
+              ),
+              // Output Ports (Right side)
+              $(go.Panel, "Vertical",
+                { row: 1, column: 2, alignment: go.Spot.Right, itemArray: [] },
+                new go.Binding("itemArray", "outports"),
+                { itemTemplate: 
+                    $(go.Panel, "Horizontal",
+                      { 
+                        margin: new go.Margin(2, 2, 2, 0), alignment: go.Spot.Right,
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: true, cursor: "pointer" 
+                      },
+                      new go.Binding("portId", "name"),
+                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
+                        new go.Binding("text", "name")),
+                      $(go.Shape, { width: 10, height: 10, stroke: null },
+                        new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Rectangle"),
+                        new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange"))
+                    )
+                }
+              )
+          );
+
+          if (isGroup) {
+              tablePanel.add($(go.Placeholder, { row: 1, column: 1, padding: 20, alignment: go.Spot.Center }));
+          }
+
+          var template = $(nodeType, "Auto",
+            { 
+              locationSpot: go.Spot.Center,
+              contextMenu: $("ContextMenu",
               $("ContextMenuButton",
                 $(go.TextBlock, "Add Input Port"),
                 { click: function(e, obj) { addPort(obj.part.adornedPart, "in"); } }),
               $("ContextMenuButton",
                 $(go.TextBlock, "Add Output Port"),
                 { click: function(e, obj) { addPort(obj.part.adornedPart, "out"); } })
-            )
-          },
-          $(go.Shape, "Rectangle", { fill: "forestgreen", stroke: null, minSize: new go.Size(150, 100) }),
-          $(go.Panel, "Table",
-            { margin: 5, defaultAlignment: go.Spot.Top, stretch: go.GraphObject.Fill },
-            $(go.Panel, "Vertical",
-              { row: 0, column: 0, columnSpan: 2, alignment: go.Spot.Center, margin: new go.Margin(0, 0, 10, 0) },
-              $(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "white" },
-                new go.Binding("text", "entityName")), // Display Entity Name
-              $(go.TextBlock, { margin: 2, font: "italic 10pt sans-serif", stroke: "white" },
-                new go.Binding("text", "key")) // Display Instance Name
-            ),
-            // Input Ports (Left side)
-            $(go.Panel, "Vertical",
-              {
-                row: 1, column: 0,
-                alignment: go.Spot.Left,
-                itemArray: [],
-                itemTemplate:
-                  $(go.Panel, "Horizontal",
-                    { margin: 2, alignment: go.Spot.Left },
-                    $(go.Shape,
-                      { width: 10, height: 10, stroke: null, toSpot: go.Spot.Left, toLinkable: true, toMaxLinks: 1, cursor: "pointer" },
-                      new go.Binding("portId", "name"),
-                      new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Circle"),
-                      new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange")),
-                    $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 0, 0, 5), stroke: "white" },
-                      new go.Binding("text", "name"))
-                  )
-              },
-              new go.Binding("itemArray", "inports")
-            ),
-            // Output Ports (Right side)
-            $(go.Panel, "Vertical",
-              {
-                row: 1, column: 1,
-                alignment: go.Spot.Right,
-                itemArray: [],
-                itemTemplate:
-                  $(go.Panel, "Horizontal",
-                    { margin: 2, alignment: go.Spot.Right },
-                    $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
-                      new go.Binding("text", "name")),
-                    $(go.Shape,
-                      { width: 10, height: 10, stroke: null, fromSpot: go.Spot.Right, fromLinkable: true, cursor: "pointer" },
-                      new go.Binding("portId", "name"),
-                      new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Rectangle"),
-                      new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange"))
-                  )
-              },
-              new go.Binding("itemArray", "outports")
-            )
-          )
-        ));
+              )
+            },
+            $(go.Shape, "Rectangle", { fill: background, stroke: "white", strokeWidth: 2, minSize: new go.Size(150, 100) }),
+            tablePanel
+          );
+
+          if (isGroup) {
+              template.layout = $(go.LayeredDigraphLayout, { direction: 0, columnSpacing: 10 });
+              template.isSubGraphExpanded = true;
+          }
+          return template;
+      }
+
+      myDiagram.nodeTemplateMap.add("Module", makeTemplate("Module", false, "cornflowerblue"));
+      myDiagram.groupTemplateMap.add("Module", makeTemplate("Module", true, "forestgreen"));
 
       myDiagram.nodeTemplateMap.add("TopInput",
         $(go.Node, "Spot",
@@ -246,7 +275,55 @@
           }
         });
 
-        return { name: entityName, ports: ports };
+        // Parse Architecture for Components and Instantiations
+        var components = {};
+        var instances = [];
+        var signals = [];
+
+        // Simple regex to find component declarations
+        var componentRegex = /component\s+(\w+)(?:\s+is)?\s+port\s*\(([\s\S]*?)\)\s*;\s*end\s+component/gi;
+        var compMatch;
+        while ((compMatch = componentRegex.exec(cleanedVHDL)) !== null) {
+            var compName = compMatch[1].toLowerCase();
+            var compPortStr = compMatch[2];
+            var compPorts = [];
+            var cpLines = compPortStr.split(';');
+            cpLines.forEach(function(line) {
+                var m = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
+                if (m) compPorts.push({ name: m[1], direction: m[2].toLowerCase(), type: m[3] });
+            });
+            components[compName] = compPorts;
+        }
+
+        // Find Instantiations: Label : [entity work.]EntityName port map ( ... );
+        // Note: This regex is simplified and assumes named association
+        var instRegex = /(\w+)\s*:\s*(?:entity\s+\w+\.)?(\w+)\s+port\s+map\s*\(([\s\S]*?)\)\s*;/gi;
+        var instMatch;
+        // We need to search only after "begin" of architecture
+        var beginMatch = /architecture\s+\w+\s+of\s+\w+\s+is[\s\S]*?begin/i.exec(cleanedVHDL);
+        if (beginMatch) {
+            var archBody = cleanedVHDL.substring(beginMatch.index + beginMatch[0].length);
+            while ((instMatch = instRegex.exec(archBody)) !== null) {
+                var instLabel = instMatch[1];
+                var compName = instMatch[2].toLowerCase();
+                var mapStr = instMatch[3];
+                var portMap = {};
+                
+                // Parse port map (port => signal)
+                var mapParts = mapStr.split(',');
+                mapParts.forEach(function(part) {
+                    var kv = part.split('=>');
+                    if (kv.length === 2) {
+                        var sig = kv[1].trim();
+                        // Remove slice/index info (e.g. "(17 downto 0)" or "(0)") to match base signal/port names
+                        portMap[kv[0].trim()] = sig.replace(/\s*\([\s\S]*?\)$/, "");
+                    }
+                });
+                instances.push({ name: instLabel, component: compName, map: portMap });
+            }
+        }
+
+        return { name: entityName, ports: ports, components: components, instances: instances };
       }
 
       function addPort(node, direction) {
@@ -329,11 +406,112 @@
           key: instanceName,
           entityName: moduleInfo.name,
           type: 'Module',
+          isGroup: true, // Make it a group
           inports: inports,
           outports: outports,
           ports: moduleInfo.ports
         };
         myDiagram.model.addNodeData(newNode);
+
+        // Create internal instances
+        if (moduleInfo.instances && moduleInfo.instances.length > 0) {
+            moduleInfo.instances.forEach(function(inst) {
+                var compPorts = moduleInfo.components[inst.component] || [];
+                var instIn = [];
+                var instOut = [];
+                compPorts.forEach(function(p) {
+                    if (p.direction === 'in') instIn.push({ name: p.name, type: p.type });
+                    else instOut.push({ name: p.name, type: p.type });
+                });
+
+                var instKey = instanceName + "_" + inst.name;
+                var instNode = {
+                    key: instKey,
+                    entityName: inst.component,
+                    type: 'Module',
+                    group: instanceName, // Parent is the main module
+                    inports: instIn,
+                    outports: instOut,
+                    ports: compPorts
+                };
+                myDiagram.model.addNodeData(instNode);
+            });
+
+            createInternalLinks(moduleInfo, instanceName);
+        }
+      }
+
+      function createInternalLinks(moduleInfo, parentKey) {
+          // Map: SignalName -> Array of { key, port, isParent, direction }
+          var netlist = {};
+
+          // Add Parent Ports to netlist
+          moduleInfo.ports.forEach(function(p) {
+              var sigName = p.name.toLowerCase();
+              if (!netlist[sigName]) netlist[sigName] = [];
+              netlist[sigName].push({ key: parentKey, port: p.name, isParent: true, direction: p.direction });
+          });
+
+          // Add Instance Ports to netlist
+          moduleInfo.instances.forEach(function(inst) {
+              var instKey = parentKey + "_" + inst.name;
+              var compDef = moduleInfo.components[inst.component];
+              var compPortDir = {};
+              var compPortNameMap = {};
+              if (compDef) {
+                  compDef.forEach(p => {
+                      var lower = p.name.toLowerCase();
+                      compPortDir[lower] = p.direction;
+                      compPortNameMap[lower] = p.name;
+                  });
+              }
+
+              for (var port in inst.map) {
+                  var signal = inst.map[port].toLowerCase();
+                  if (!netlist[signal]) netlist[signal] = [];
+                  var lowerPort = port.toLowerCase();
+                  var dir = compPortDir[lowerPort] || 'in';
+                  var canonicalPort = compPortNameMap[lowerPort] || port;
+                  netlist[signal].push({ key: instKey, port: canonicalPort, isParent: false, direction: dir });
+              }
+          });
+
+          // Create Links
+          for (var signal in netlist) {
+              var connections = netlist[signal];
+              var sources = [];
+              var destinations = [];
+
+              connections.forEach(function(conn) {
+                  if (conn.isParent) {
+                      // Parent Input is a Source
+                      if (conn.direction === 'in' || conn.direction === 'inout') sources.push(conn);
+                      // Parent Output is a Destination
+                      if (conn.direction === 'out' || conn.direction === 'inout' || conn.direction === 'buffer') destinations.push(conn);
+                  } else {
+                      // Instance Output is a Source
+                      if (conn.direction === 'out' || conn.direction === 'inout' || conn.direction === 'buffer') sources.push(conn);
+                      // Instance Input is a Destination
+                      if (conn.direction === 'in' || conn.direction === 'inout') destinations.push(conn);
+                  }
+              });
+
+              if (sources.length > 0) {
+                  sources.forEach(function(src) {
+                      destinations.forEach(function(dst) {
+                          if (src.key === dst.key && src.port === dst.port) return;
+                          if (src.isParent && dst.isParent) return;
+
+                          myDiagram.model.addLinkData({
+                              from: src.key,
+                              fromPort: src.port,
+                              to: dst.key,
+                              toPort: dst.port
+                          });
+                      });
+                  });
+              }
+          }
       }
 
       // Define a default context menu for the whole diagram
