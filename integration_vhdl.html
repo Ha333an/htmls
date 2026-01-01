@@ -360,7 +360,10 @@
         relinkableTo: true
       },
         $(go.Shape, { stroke: 'gray', strokeWidth: 2 }),
-        $(go.Shape, { stroke: 'gray', fill: 'gray', toArrow: 'Standard' })
+        $(go.Shape, { stroke: 'gray', fill: 'gray', toArrow: 'Standard' }),
+        $(go.TextBlock, 
+          { segmentOffset: new go.Point(0, -10), font: "10pt sans-serif", stroke: "black", background: "white" },
+          new go.Binding("text", "fromPort"))
       );
 
       load();
