@@ -45,102 +45,76 @@
         }
       });
 
-      function makePort(name, leftside) {
-        var port = new go.Shape('Rectangle', {
-          fill: 'gray',
-          stroke: null,
-          desiredSize: new go.Size(8, 8),
-          portId: name,
-          toMaxLinks: 1,
-          cursor: 'pointer'
-        });
-
-        var lab = new go.TextBlock(name, {
-          font: '7pt sans-serif',
-          editable: true,
-          isMultiline: false,
-          minSize: new go.Size(20, NaN),
-          margin: new go.Margin(0, 0, 0, 2)
-        });
-
-        var panel = new go.Panel('Horizontal', { margin: new go.Margin(2, 0) });
-
-        if (leftside) {
-          port.toSpot = go.Spot.Left;
-          port.toLinkable = true;
-          lab.margin = new go.Margin(1, 0, 0, 1);
-          panel.alignment = go.Spot.TopLeft;
-          panel.add(port);
-          panel.add(lab);
-        } else {
-          port.fromSpot = go.Spot.Right;
-          port.fromLinkable = true;
-          lab.margin = new go.Margin(1, 1, 0, 0);
-          panel.alignment = go.Spot.TopRight;
-          panel.add(lab);
-          panel.add(port);
-        }
-        return panel;
+      function isVector(type) {
+        return type && type.toLowerCase().indexOf("vector") >= 0;
       }
 
-      function addInputPort(node) {
-        var inPortsPanel = node.findObject("INPORTS");
-        var newPortName = "IN" + inPortsPanel.elements.count;
-        inPortsPanel.add(makePort(newPortName, true));
-      }
-
-      function addOutputPort(node) {
-        var outPortsPanel = node.findObject("OUTPORTS");
-        var newPortName = "OUT" + outPortsPanel.elements.count;
-        outPortsPanel.add(makePort(newPortName, false));
-      }
-
-      function makeTemplate(typename, icon, background, inports, outports) {
-        var node = new go.Node('Spot')
-          .add(
-            new go.Panel('Auto', { width: 200, height: 420 })
-              .add(
-                new go.Shape('Rectangle', {
-                  fill: background,
-                  stroke: null,
-                  strokeWidth: 0,
-                  spot1: go.Spot.TopLeft,
-                  spot2: go.Spot.BottomRight
-                }),
-                new go.Panel('Table')
-                  .add(
-                    new go.TextBlock(typename, {
-                      row: 0,
-                      margin: 3,
-                      maxSize: new go.Size(80, NaN),
-                      stroke: 'black',
-                      font: 'bold 12pt sans-serif'
-                    }),
-                    new go.Picture(icon, { row: 1, width: 16, height: 16, scale: 3.0 }),
-                    new go.TextBlock({
-                      row: 2,
-                      margin: 3,
-                      editable: true,
-                      maxSize: new go.Size(80, 40),
-                      stroke: 'white',
-                      font: 'bold 9pt sans-serif'
-                    }).bindTwoWay('text', 'key')
+      // Define a generic Node Template that binds to port arrays
+      myDiagram.nodeTemplate =
+        $(go.Node, "Auto",
+          { 
+            locationSpot: go.Spot.Center,
+            contextMenu: $("ContextMenu",
+              $("ContextMenuButton",
+                $(go.TextBlock, "Add Input Port"),
+                { click: function(e, obj) { addPort(obj.part.adornedPart, "in"); } }),
+              $("ContextMenuButton",
+                $(go.TextBlock, "Add Output Port"),
+                { click: function(e, obj) { addPort(obj.part.adornedPart, "out"); } })
+            )
+          },
+          $(go.Shape, "Rectangle", { fill: "forestgreen", stroke: null, minSize: new go.Size(150, 100) }),
+          $(go.Panel, "Table",
+            { margin: 5, defaultAlignment: go.Spot.Top, stretch: go.GraphObject.Fill },
+            $(go.Panel, "Vertical",
+              { row: 0, column: 0, columnSpan: 2, alignment: go.Spot.Center, margin: new go.Margin(0, 0, 10, 0) },
+              $(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "white" },
+                new go.Binding("text", "entityName")), // Display Entity Name
+              $(go.TextBlock, { margin: 2, font: "italic 10pt sans-serif", stroke: "white" },
+                new go.Binding("text", "key")) // Display Instance Name
+            ),
+            // Input Ports (Left side)
+            $(go.Panel, "Vertical",
+              {
+                row: 1, column: 0,
+                alignment: go.Spot.Left,
+                itemArray: [],
+                itemTemplate:
+                  $(go.Panel, "Horizontal",
+                    { margin: 2, alignment: go.Spot.Left },
+                    $(go.Shape,
+                      { width: 10, height: 10, stroke: null, toSpot: go.Spot.Left, toLinkable: true, toMaxLinks: 1, cursor: "pointer" },
+                      new go.Binding("portId", "name"),
+                      new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Circle"),
+                      new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange")),
+                    $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 0, 0, 5), stroke: "white" },
+                      new go.Binding("text", "name"))
                   )
-              ),
-            new go.Panel('Vertical', {
-              alignment: go.Spot.Left,
-              alignmentFocus: new go.Spot(0, 0.5, 8, 0),
-              name: "INPORTS"
-            }).add(...inports),
-            new go.Panel('Vertical', {
-              alignment: go.Spot.Right,
-              alignmentFocus: new go.Spot(1, 0.5, -8, 0),
-              name: "OUTPORTS"
-            }).add(...outports)
-          );
-
-        myDiagram.nodeTemplateMap.set(typename, node);
-      }
+              },
+              new go.Binding("itemArray", "inports")
+            ),
+            // Output Ports (Right side)
+            $(go.Panel, "Vertical",
+              {
+                row: 1, column: 1,
+                alignment: go.Spot.Right,
+                itemArray: [],
+                itemTemplate:
+                  $(go.Panel, "Horizontal",
+                    { margin: 2, alignment: go.Spot.Right },
+                    $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
+                      new go.Binding("text", "name")),
+                    $(go.Shape,
+                      { width: 10, height: 10, stroke: null, fromSpot: go.Spot.Right, fromLinkable: true, cursor: "pointer" },
+                      new go.Binding("portId", "name"),
+                      new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Rectangle"),
+                      new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange"))
+                  )
+              },
+              new go.Binding("itemArray", "outports")
+            )
+          )
+        );
 
       function importVHDLModule(e, obj) {
         var input = document.createElement('input');
@@ -215,7 +189,7 @@
         portLines.forEach(function (line) {
           // Match ports with std_logic or std_logic_vector, capturing vector ranges if they exist
           //var portMatch = /(\w+)\s*:\s*(in|inout|out)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
-          var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
+          var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
 
           if (portMatch) {
             var name = portMatch[1].trim();
@@ -245,37 +219,72 @@
         return { name: entityName, ports: ports };
       }
 
+      function addPort(node, direction) {
+        var diagram = node.diagram;
+        diagram.startTransaction("addPort");
+        var data = node.data;
+        
+        var name = prompt("Enter port name:", direction === "in" ? "clk" : "out1");
+        if (!name) {
+            diagram.commitTransaction("addPort");
+            return;
+        }
+        
+        var type = prompt("Enter port type:", "std_logic");
+        if (!type) type = "std_logic";
+
+        var portObj = { name: name, type: type };
+        var fullPortObj = { name: name, direction: direction, type: type };
+
+        if (direction === "in") {
+            var arr = data.inports ? data.inports.slice() : [];
+            arr.push(portObj);
+            diagram.model.setDataProperty(data, "inports", arr);
+        } else {
+            var arr = data.outports ? data.outports.slice() : [];
+            arr.push(portObj);
+            diagram.model.setDataProperty(data, "outports", arr);
+        }
+        
+        var allPorts = data.ports ? data.ports.slice() : [];
+        allPorts.push(fullPortObj);
+        diagram.model.setDataProperty(data, "ports", allPorts);
+
+        diagram.commitTransaction("addPort");
+      }
+
 
 
 
       function createNodeFromModule(moduleInfo) {
         var inports = [];
         var outports = [];
-        var inoutports = [];
 
         moduleInfo.ports.forEach(function (port) {
           if (port.direction === 'in') {
-               // get the Array of port data to be modified
-
-            inports.push(makePort(port.name, true));
-          } else if (port.direction === 'out') {
-            outports.push(makePort(port.name, false));
+            inports.push({ name: port.name, type: port.type });
+          } else {
+            // Treat out and inout as outputs for visualization on the right
+            outports.push({ name: port.name, type: port.type });
           }
-          else if (port.direction === 'inout') {
-            outports.push(makePort(port.name, true));
-          }
-
         });
 
-        makeTemplate('Module', '', 'forestgreen', inports, outports);
+        // Generate unique instance name
+        var instanceName = moduleInfo.name + "_inst";
+        var count = 1;
+        while (myDiagram.model.findNodeDataForKey(instanceName)) {
+            instanceName = moduleInfo.name + "_inst" + count;
+            count++;
+        }
 
         var newNode = {
+          key: instanceName,
+          entityName: moduleInfo.name,
           type: 'Module',
-          key: moduleInfo.name,
-          ports: []
+          inports: inports,
+          outports: outports,
+          ports: moduleInfo.ports
         };
-        // Add newportdata to the PortArray within newNode
-        newNode.ports=(moduleInfo.ports);
         myDiagram.model.addNodeData(newNode);
       }
 
@@ -287,14 +296,6 @@
         )
       );
 
-      // Define a default module template
-      makeTemplate(
-        'Module',
-        '',
-        'forestgreen',
-        [makePort('R', true)],
-        [makePort('L', false)]
-      );
 
       myDiagram.linkTemplate = $(go.Link, {
         routing: go.Routing.Orthogonal,
@@ -330,16 +331,29 @@ function exportVHDL() {
     vhdlCode += `entity TopModule is\n`;
     vhdlCode += `  port (\n`;
 
-    // Collect all unique port names and types for the top-level entity
+    // Identify ports that are connected internally
+    let connectedPorts = new Set();
+    myDiagram.links.each(function(link) {
+        connectedPorts.add(link.fromNode.key + "." + link.fromPortId);
+        connectedPorts.add(link.toNode.key + "." + link.toPortId);
+    });
+
+    // Collect ports for the top-level entity (only unconnected ones)
     let allPorts = {};
     myDiagram.nodes.each(function(node) {
         if (node.data.type === 'Module') {
             const ports = getPortsFromNode(node);
             ports.forEach(function(port) {
-                allPorts[port.name] = {
-                    direction: port.direction,
-                    type: port.type
-                };
+                // Check if this specific port instance is connected
+                if (!connectedPorts.has(node.key + "." + port.name)) {
+                    // Create a unique name for the top-level port to avoid collisions
+                    // e.g., InstanceName_PortName
+                    let topPortName = node.key + "_" + port.name;
+                    allPorts[topPortName] = {
+                        direction: port.direction,
+                        type: port.type
+                    };
+                }
             });
         }
     });
@@ -369,8 +383,10 @@ function exportVHDL() {
     myDiagram.links.each(function(link) {
         const fromPort = link.fromPortId;
         const toPort = link.toPortId;
-        const signalName = `${fromPort}_to_${toPort}`;
-        signals[signalName] = 'std_logic';
+        const signalName = `${link.fromNode.key}_${fromPort}_to_${link.toNode.key}_${toPort}`;
+        const sourceNodeData = link.fromNode.data;
+        const sourcePort = sourceNodeData.ports.find(p => p.name === fromPort);
+        signals[signalName] = sourcePort ? sourcePort.type : 'std_logic';
     });
 
     vhdlCode += "\n-- Signal Declarations\n";
@@ -405,11 +421,10 @@ function getPortsFromNode(node) {
 }
 
 function generateVHDLComponent(moduleData) {
-    console.log(`Generating component for module: ${moduleData.key}`); // Debugging line
+    console.log(`Generating component for module: ${moduleData.entityName}`); // Debugging line
     let ports = moduleData.ports || []; // Fallback to an empty array if ports is undefined
-    console.log(`Ports data: ${JSON.stringify(ports)}`); // Debugging line
 
-    let vhdl = `component ${moduleData.key}\n`;
+    let vhdl = `component ${moduleData.entityName}\n`;
     vhdl += `  port (\n`;
 
     ports.forEach((port, index) => {
@@ -425,19 +440,22 @@ function generateVHDLComponent(moduleData) {
 }
 
 function instantiateComponent(moduleData) {
-    let instanceName = moduleData.key + "_inst";
-    let vhdl = `${instanceName} : ${moduleData.key}\n`;
+    let instanceName = moduleData.key;
+    let vhdl = `${instanceName} : ${moduleData.entityName}\n`;
     vhdl += `  port map (\n`;
 
     const ports = moduleData.ports || []; // Handle undefined ports
     ports.forEach((port, index) => {
         const separator = index < ports.length - 1 ? ',' : '';
-        let signalName = port.name; // Default signal name is the port name itself
+        
+        // Default to top-level port name if unconnected
+        let signalName = moduleData.key + "_" + port.name; 
+
         myDiagram.links.each(function(link) {
-            if (link.fromPortId === port.name) {
-                signalName = `${link.fromPortId}_to_${link.toPortId}`;
-            } else if (link.toPortId === port.name) {
-                signalName = `${link.fromPortId}_to_${link.toPortId}`;
+            if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
+                signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+            } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
+                signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
             }
         });
 
