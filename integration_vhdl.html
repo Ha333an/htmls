@@ -33,8 +33,7 @@
         initialAutoScale: go.AutoScale.UniformToFill,
         "linkingTool.isEnabled": true,
         "relinkingTool.isEnabled": true,
-        layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 50, columnSpacing: 50 }),
-        layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 50, columnSpacing: 50, isOngoing: false }),
+        layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 150, columnSpacing: 50, isOngoing: false }),
         'undoManager.isEnabled': true
       });
 
@@ -102,7 +101,8 @@
                     $(go.Panel, "Horizontal",
                       { 
                         margin: new go.Margin(2, 0, 2, 2), alignment: go.Spot.Left,
-                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: isGroup, cursor: "pointer" 
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: true, fromLinkable: isGroup, cursor: "pointer",
+                        fromEndSegmentLength: 30, toEndSegmentLength: 30
                       },
                       new go.Binding("portId", "name"),
                       $(go.Shape, { width: 10, height: 10, stroke: null },
@@ -121,7 +121,8 @@
                     $(go.Panel, "Horizontal",
                       { 
                         margin: new go.Margin(2, 2, 2, 0), alignment: go.Spot.Right,
-                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: isGroup, fromLinkable: true, cursor: "pointer" 
+                        toSpot: go.Spot.Left, fromSpot: go.Spot.Right, toLinkable: isGroup, fromLinkable: true, cursor: "pointer",
+                        fromEndSegmentLength: 30, toEndSegmentLength: 30
                       },
                       new go.Binding("portId", "name"),
                       $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
@@ -226,6 +227,7 @@
             }
           }
           
+          console.log("Found " + promises.length + " VHDL files to process.");
           await Promise.all(promises);
           
           var entities = Object.keys(vhdlLibrary);
@@ -262,9 +264,14 @@
         return new Promise((resolve, reject) => {
           var reader = new FileReader();
           reader.onload = function () {
+            console.log("Processing file:", file.name);
             var info = parseVHDL(reader.result);
             if (info) {
+                console.log("Successfully parsed entity:", info.name);
+                info.fileName = file.webkitRelativePath || file.name;
                 vhdlLibrary[info.name.toLowerCase()] = info;
+            } else {
+                console.warn("Failed to parse VHDL from file:", file.name);
             }
             resolve();
           };
@@ -275,23 +282,32 @@
       function importVHDLModule(e, obj) {
         var input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.vhd';
-        input.onchange = function (event) {
-          var file = event.target.files[0];
-          var reader = new FileReader();
-          reader.onload = function () {
-            var content = reader.result;
-            var moduleInfo = parseVHDL(content);
-            if (moduleInfo) {
-              vhdlLibrary[moduleInfo.name.toLowerCase()] = moduleInfo;
-              buildHierarchy(moduleInfo, null, null);
-              myDiagram.layoutDiagram(true);
-              window.updateLinkVisibility();
-            } else {
-              alert('Invalid VHDL file!');
-            }
-          };
-          reader.readAsText(file);
+        input.accept = '.vhd,.vhdl';
+        input.multiple = true;
+        input.onchange = async function (event) {
+          var files = event.target.files;
+          if (files.length === 0) return;
+
+          var promises = [];
+          for (var i = 0; i < files.length; i++) {
+             promises.push(readFile(files[i]));
+          }
+          await Promise.all(promises);
+
+          if (files.length === 1) {
+              var file = files[0];
+              // Find the entity corresponding to this file
+              var key = Object.keys(vhdlLibrary).find(k => vhdlLibrary[k].fileName === (file.webkitRelativePath || file.name));
+              if (key) {
+                  var info = vhdlLibrary[key];
+                  console.log("Imported entity:", info.name);
+                  buildHierarchy(info, null, null);
+                  myDiagram.layoutDiagram(true);
+                  window.updateLinkVisibility();
+              }
+          } else {
+              alert(files.length + " files loaded into library. You can now import the top-level module.");
+          }
         };
         input.click();
       }
@@ -307,40 +323,56 @@
 
         // Match the entity name
         var entityMatch = /entity\s+(\w+)\s+is/i.exec(cleanedVHDL);
-        if (!entityMatch) return null;
+        if (!entityMatch) {
+            console.log("Parser: No entity declaration found.");
+            return null;
+        }
 
         var entityName = entityMatch[1];
         var ports = [];
 
         // Use regex to find the start of the port block, allowing for optional space
-        var portStartMatch = /port\s*\(/i.exec(cleanedVHDL);
-        if (!portStartMatch) return null;
+        var searchStartIndex = entityMatch.index + entityMatch[0].length;
+        var portStartMatch = /port\s*\(/i.exec(cleanedVHDL.substring(searchStartIndex));
+        if (!portStartMatch) {
+            console.log("Parser: No port declaration found for entity " + entityName);
+            return null;
+        }
 
-        var portStartIndex = portStartMatch.index + portStartMatch[0].length - 1;
+        var portStartIndex = searchStartIndex + portStartMatch.index + portStartMatch[0].length - 1;
 
         // Initialize a counter to track parentheses
         let parenthesesCount = 1;
         let portEndIndex = -1;
 
         // Traverse characters starting from the port start index to find the end
-        for (let i = portStartIndex + 5; i < cleanedVHDL.length; i++) {
+        for (let i = portStartIndex + 1; i < cleanedVHDL.length; i++) {
           if (cleanedVHDL[i] === '(') {
             parenthesesCount++;
           } else if (cleanedVHDL[i] === ')') {
             parenthesesCount--;
             // When we reach ");", we've found the end of the port block
-            if (parenthesesCount === 0 && cleanedVHDL[i + 1] === ';') {
-              portEndIndex = i + 2; // +2 to include the semicolon
-              break;
+            if (parenthesesCount === 0) {
+              var nextIndex = i + 1;
+              while (nextIndex < cleanedVHDL.length && cleanedVHDL[nextIndex] === ' ') nextIndex++;
+              if (cleanedVHDL[nextIndex] === ';') {
+                portEndIndex = nextIndex + 1;
+                break;
+              }
             }
           }
         }
 
         // If no end was found, return null
-        if (portEndIndex === -1) return null;
+        if (portEndIndex === -1) {
+            console.log("Parser: Could not find end of port block for entity " + entityName);
+            return null;
+        }
 
         // Extract the port section
-        var portSection = cleanedVHDL.substring(portStartIndex, portEndIndex).trim();
+        var portSection = cleanedVHDL.substring(portStartIndex + 1, portEndIndex).trim();
+        // Remove the trailing ); or ) ;
+        portSection = portSection.replace(/\)\s*;?$/, "");
 
         // Split the port section into individual lines of port declarations
         var portLines = portSection.split(';').map(line => line.trim()).filter(line => line);
@@ -348,12 +380,12 @@
         portLines.forEach(function (line) {
           // Match ports with std_logic or std_logic_vector, capturing vector ranges if they exist
           //var portMatch = /(\w+)\s*:\s*(in|inout|out)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
-          var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
+          var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([^;]+)/i.exec(line);
 
           if (portMatch) {
             var name = portMatch[1].trim();
             var direction = portMatch[2].toLowerCase().trim();
-            var type = portMatch[3].trim();
+            var type = portMatch[3].trim().split(':=')[0].trim();
 
             // Check if the type includes a vector range
             var vectorMatch = /std_logic_vector\s*\(\s*(\d+)\s+downto\s+(\d+)\s*\)/i.exec(type);
@@ -381,7 +413,7 @@
         var signals = [];
 
         // Simple regex to find component declarations
-        var componentRegex = /component\s+(\w+)(?:\s+is)?\s+port\s*\(([\s\S]*?)\)\s*;\s*end\s+component/gi;
+        var componentRegex = /component\s+(\w+)(?:\s+is)?\s*(?:generic\s*\([\s\S]*?\)\s*;\s*)?port\s*\(([\s\S]*?)\)\s*;\s*end\s+component/gi;
         var compMatch;
         while ((compMatch = componentRegex.exec(cleanedVHDL)) !== null) {
             var compName = compMatch[1].toLowerCase();
@@ -397,7 +429,7 @@
 
         // Find Instantiations: Label : [entity work.]EntityName port map ( ... );
         // Note: This regex is simplified and assumes named association
-        var instRegex = /(\w+)\s*:\s*(?:entity\s+\w+\.)?(\w+)\s+port\s+map\s*\(([\s\S]*?)\)\s*;/gi;
+        var instRegex = /(\w+)\s*:\s*(?:component\s+)?(?:entity\s+(?:\w+\.)?)?(\w+)(?:\s*\([\w\s\.]+\))?\s+(?:[^;]*?)port\s+map\s*\(([\s\S]*?)\)\s*;/gi;
         var instMatch;
         // We need to search only after "begin" of architecture
         var beginMatch = /architecture\s+\w+\s+of\s+\w+\s+is[\s\S]*?begin/i.exec(cleanedVHDL);
@@ -573,6 +605,7 @@
         var newNode = {
           key: instanceKey,
           entityName: moduleInfo.name,
+          fileName: moduleInfo.fileName,
           type: 'Module',
           isGroup: true, // Make it a group
           inports: inports,
@@ -644,6 +677,9 @@
             if (childInfo && !inst.isGlue && !inst.isProcess) {
                 buildHierarchy(childInfo, childInstanceKey, instanceKey);
             } else {
+                if (!childInfo && !inst.isGlue && !inst.isProcess) {
+                    console.warn("Component not found in library:", compName);
+                }
                 var compPorts = [];
                 if (childInfo) compPorts = childInfo.ports;
                 else if (localComponents[compName]) compPorts = localComponents[compName];
@@ -659,6 +695,7 @@
                 var instNode = {
                     key: childInstanceKey,
                     entityName: inst.component,
+                    fileName: childInfo ? childInfo.fileName : undefined,
                     type: 'Module',
                     group: instanceKey,
                     inports: instIn,
@@ -968,6 +1005,7 @@
             var content = "<b>Node Selected</b><br/>" +
                                   "Key: " + data.key + "<br/>" +
                                   "Entity: " + (data.entityName || "N/A") + "<br/>" +
+                                  "File: " + (data.fileName || "N/A (Not loaded)") + "<br/>" +
                                   "Type: " + data.type;
             
             if (data.code) {
@@ -1166,138 +1204,6 @@ function instantiateComponent(moduleData) {
     vhdl += `  port map (\n`;
 
     const ports = moduleData.ports || []; // Handle undefined ports
-    ports.forEach((port, index) => {
-        const separator = index < ports.length - 1 ? ',' : '';
-        
-        let signalName = "open"; 
-
-        myDiagram.links.each(function(link) {
-            if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
-                if (link.toNode.data.type === "TopOutput") signalName = link.toNode.data.name;
-                else if (link.toNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
-            } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
-                if (link.fromNode.data.type === "TopInput") signalName = link.fromNode.data.name;
-                else if (link.fromNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
-            }
-        });
-
-        vhdl += `    ${port.name} => ${signalName}${separator}\n`;
-    });
-
-    vhdl += `  );\n\n`;
-    return vhdl;
-}
-
-  </script>
-
-
-  <div id="sample">
-    <div style="display: flex; width: 100%;">
-      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
-      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
-          <h3>Inspector</h3>
-          <div id="inspectorContent">Select an item to view details</div>
-      </div>
-    </div>
-
-    <div>
-      <div>
-        <button id="SaveButton" onclick="save()">Save</button>
-        <button onclick="load()">Load</button>
-        <button onclick="exportVHDL()">Export VHDL</button>
-        <button onclick="autoConnect()">Auto Connect</button>
-        <button onclick="loadProject()">Load Project Folder</button>
-
-        Diagram Model saved in JSON format:
-      </div>
-      <textarea id="mySavedModel" style="width: 100%; height: 300px">
-      { "class": "GraphLinksModel",
-      "copiesArrays": true,
-      "copiesArrayObjects": true,
-      "nodeCategoryProperty": "type",
-      "linkFromPortIdProperty": "fromPort",
-      "linkToPortIdProperty": "toPort",
-      "nodeDataArray": [
-    ],
-      "linkDataArray": [
-    ]}
-    </textarea>
-    </div>
-  </div>
-
-
-  </div>
-  <!-- * * * * * * * * * * * * * -->
-  <!--  End of GoJS sample code  -->
-  </div>
-
-</html>st ports = moduleData.ports || []; // Handle undefined ports
-    ports.forEach((port, index) => {
-        const separator = index < ports.length - 1 ? ',' : '';
-        
-        let signalName = "open"; 
-
-        myDiagram.links.each(function(link) {
-            if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
-                if (link.toNode.data.type === "TopOutput") signalName = link.toNode.data.name;
-                else if (link.toNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
-            } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
-                if (link.fromNode.data.type === "TopInput") signalName = link.fromNode.data.name;
-                else if (link.fromNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
-            }
-        });
-
-        vhdl += `    ${port.name} => ${signalName}${separator}\n`;
-    });
-
-    vhdl += `  );\n\n`;
-    return vhdl;
-}
-
-  </script>
-
-
-  <div id="sample">
-    <div style="display: flex; width: 100%;">
-      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
-      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
-          <h3>Inspector</h3>
-          <div id="inspectorContent">Select an item to view details</div>
-      </div>
-    </div>
-
-    <div>
-      <div>
-        <button id="SaveButton" onclick="save()">Save</button>
-        <button onclick="load()">Load</button>
-        <button onclick="exportVHDL()">Export VHDL</button>
-        <button onclick="autoConnect()">Auto Connect</button>
-        <button onclick="loadProject()">Load Project Folder</button>
-
-        Diagram Model saved in JSON format:
-      </div>
-      <textarea id="mySavedModel" style="width: 100%; height: 300px">
-      { "class": "GraphLinksModel",
-      "copiesArrays": true,
-      "copiesArrayObjects": true,
-      "nodeCategoryProperty": "type",
-      "linkFromPortIdProperty": "fromPort",
-      "linkToPortIdProperty": "toPort",
-      "nodeDataArray": [
-    ],
-      "linkDataArray": [
-    ]}
-    </textarea>
-    </div>
-  </div>
-
-
-  </div>
-  <!-- * * * * * * * * * * * * * -->
-  <!--  End of GoJS sample code  -->
-  </div>
-
-</html>st ports = moduleData.ports || []; // Handle undefined ports
     ports.forEach((port, index) => {
         const separator = index < ports.length - 1 ? ',' : '';
         
