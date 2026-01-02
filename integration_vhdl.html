@@ -1231,6 +1231,131 @@ function instantiateComponent(moduleData) {
     return vhdl;
 }
 
+function searchDiagram() {
+    var input = document.getElementById("searchInput");
+    var resultsDiv = document.getElementById("searchResults");
+    if (!input) return;
+    var text = input.value.trim();
+    
+    if (resultsDiv) {
+        resultsDiv.innerHTML = "";
+        resultsDiv.style.display = "none";
+    }
+
+    if (!text) return;
+
+    myDiagram.startTransaction("search");
+    myDiagram.clearSelection();
+
+    var safeText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex = new RegExp(safeText, "i");
+    
+    var it = myDiagram.nodes;
+    var matches = [];
+    while (it.next()) {
+        var node = it.value;
+        var data = node.data;
+        var matchInfo = [];
+
+        if (data.key && regex.test(data.key)) matchInfo.push("Key");
+        if (data.entityName && regex.test(data.entityName)) matchInfo.push("Entity");
+        if (data.name && regex.test(data.name)) matchInfo.push("Name");
+        if (data.ports) {
+            var foundPorts = [];
+            for (var i = 0; i < data.ports.length; i++) {
+                if (regex.test(data.ports[i].name)) {
+                    foundPorts.push(data.ports[i].name);
+                }
+            }
+            if (foundPorts.length > 0) {
+                matchInfo.push("Ports: " + foundPorts.join(", "));
+            }
+        }
+
+        if (matchInfo.length > 0) {
+            node.isSelected = true;
+            matches.push({ part: node, info: matchInfo });
+        }
+    }
+
+    var lit = myDiagram.links;
+    while (lit.next()) {
+        var link = lit.value;
+        var data = link.data;
+        var matchInfo = [];
+
+        if (data.fromPort && regex.test(data.fromPort)) matchInfo.push("Source: " + data.fromPort);
+        if (data.toPort && regex.test(data.toPort)) matchInfo.push("Dest: " + data.toPort);
+
+        if (matchInfo.length > 0) {
+            link.isSelected = true;
+            matches.push({ part: link, info: matchInfo });
+        }
+    }
+
+    if (matches.length > 0) {
+        if (resultsDiv) {
+            resultsDiv.style.display = "block";
+            var ul = document.createElement("ul");
+            ul.style.listStyleType = "none";
+            ul.style.padding = "0";
+            ul.style.margin = "0";
+
+            matches.forEach(function(match) {
+                var part = match.part;
+                var info = match.info;
+                var li = document.createElement("li");
+                li.style.padding = "5px";
+                li.style.cursor = "pointer";
+                li.style.borderBottom = "1px solid #eee";
+                
+                function hl(str) {
+                    return str.replace(new RegExp("(" + safeText + ")", "gi"), "<span style='background-color: #fff59d; font-weight:bold'>$1</span>");
+                }
+
+                var label = "";
+                if (part instanceof go.Node) {
+                    var data = part.data;
+                    var typeLabel = "<span style='color: blue; font-weight: bold; font-size: 0.8em;'>[NODE]</span> ";
+                    var mainText = data.key;
+                    if (data.entityName) mainText += " (" + data.entityName + ")";
+                    else if (data.name) mainText = data.name;
+                    label = typeLabel + hl(mainText);
+                } else if (part instanceof go.Link) {
+                    var data = part.data;
+                    var typeLabel = "<span style='color: green; font-weight: bold; font-size: 0.8em;'>[NET]</span> ";
+                    var netText = (data.fromPort || "?") + " &rarr; " + (data.toPort || "?");
+                    label = typeLabel + hl(netText);
+                }
+
+                if (info.length > 0) {
+                    label += "<br/><span style='font-size: 0.85em; color: #666; margin-left: 10px;'>Matched: " + hl(info.join(", ")) + "</span>";
+                }
+
+                li.innerHTML = label;
+                li.onclick = function() {
+                    myDiagram.select(part);
+                    myDiagram.centerRect(part.actualBounds);
+                };
+                li.onmouseover = function() { this.style.backgroundColor = "#e0e0e0"; };
+                li.onmouseout = function() { this.style.backgroundColor = "transparent"; };
+                ul.appendChild(li);
+            });
+            resultsDiv.appendChild(ul);
+        }
+        myDiagram.centerRect(matches[0].part.actualBounds);
+    } else {
+        if (resultsDiv) {
+            resultsDiv.style.display = "block";
+            resultsDiv.innerHTML = "<div style='padding:5px; font-style:italic;'>No matches found</div>";
+        } else {
+            alert("No matches found for: " + text);
+        }
+    }
+
+    myDiagram.commitTransaction("search");
+}
+
   </script>
 
 
@@ -1245,6 +1370,9 @@ function instantiateComponent(moduleData) {
 
     <div>
       <div>
+        <input id="searchInput" placeholder="Search..." style="margin-right: 5px" onkeydown="if(event.key==='Enter') searchDiagram()" />
+        <button onclick="searchDiagram()">Search</button>
+        <div id="searchResults" style="position: absolute; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; display: none; z-index: 1000; width: 300px;"></div>
         <button id="SaveButton" onclick="save()">Save</button>
         <button onclick="load()">Load</button>
         <button onclick="exportVHDL()">Export VHDL</button>
