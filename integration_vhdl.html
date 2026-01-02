@@ -13,6 +13,9 @@
   <title>
     Data Flow | GoJS
   </title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/vhdl.min.js"></script>
 </head>
 
 <body>
@@ -30,8 +33,19 @@
         initialAutoScale: go.AutoScale.UniformToFill,
         "linkingTool.isEnabled": true,
         "relinkingTool.isEnabled": true,
-        layout: $(go.LayeredDigraphLayout, { direction: 0 }),
+        layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 50, columnSpacing: 50 }),
+        layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 50, columnSpacing: 50, isOngoing: false }),
         'undoManager.isEnabled': true
+      });
+
+      myDiagram.addModelChangedListener(function(e) {
+        if (e.change === go.ChangedEvent.Property && e.propertyName === "showNets") {
+          window.updateLinkVisibility();
+          if (e.newValue === true) {
+              var node = myDiagram.findNodeForData(e.object);
+              if (node !== null) myDiagram.centerRect(node.actualBounds);
+          }
+        }
       });
 
       myDiagram.addDiagramListener('Modified', (e) => {
@@ -60,6 +74,11 @@
           if (isGroup) {
             headerPanel.add($("SubGraphExpanderButton", { margin: 2 }));
           }
+
+          headerPanel.add($("CheckBox", "showNets",
+              { "ButtonIcon.stroke": "green", "_buttonFillOver": "lightgreen", "_buttonStrokeOver": "green", margin: 2 },
+              $(go.TextBlock, "Show Nets", { stroke: "white", font: "10pt sans-serif" })
+          ));
           
           headerPanel.add($(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "white" },
                   new go.Binding("text", "entityName")));
@@ -131,12 +150,14 @@
                 { click: function(e, obj) { addPort(obj.part.adornedPart, "out"); } })
               )
             },
-            $(go.Shape, "Rectangle", { fill: background, stroke: "white", strokeWidth: 2, minSize: new go.Size(150, 100) }),
+            $(go.Shape, "Rectangle", { fill: background, stroke: "white", strokeWidth: 2, minSize: new go.Size(150, 100) },
+              new go.Binding("fill", "color", function(c) { return c || background; })),
             tablePanel
           );
 
           if (isGroup) {
               template.layout = $(go.LayeredDigraphLayout, { direction: 0, columnSpacing: 10 });
+              template.layout = $(go.LayeredDigraphLayout, { direction: 0, columnSpacing: 20, layerSpacing: 50, setsPortSpots: false });
               template.isSubGraphExpanded = true;
           }
           return template;
@@ -175,6 +196,82 @@
           new go.Binding("portId", "name"))
         ));
 
+      myDiagram.nodeTemplateMap.add("Junction",
+        $(go.Node, "Spot",
+          { locationSpot: go.Spot.Center,
+            mouseEnter: function(e, node) { highlightNet(node, true); },
+            mouseLeave: function(e, node) { highlightNet(node, false); }
+          },
+          $(go.Shape, "Circle", 
+            { width: 6, height: 6, fill: "black", stroke: null })
+        ));
+
+      var vhdlLibrary = {};
+
+      window.loadProject = function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.webkitdirectory = true;
+        input.directory = true;
+        input.multiple = true;
+        input.onchange = async function (event) {
+          var files = event.target.files;
+          vhdlLibrary = {};
+          var promises = [];
+          
+          for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            if (file.name.toLowerCase().endsWith('.vhd') || file.name.toLowerCase().endsWith('.vhdl')) {
+               promises.push(readFile(file));
+            }
+          }
+          
+          await Promise.all(promises);
+          
+          var entities = Object.keys(vhdlLibrary);
+          if (entities.length === 0) {
+             alert("No VHDL entities found.");
+             return;
+          }
+          
+          var instantiated = new Set();
+          for (var key in vhdlLibrary) {
+              var info = vhdlLibrary[key];
+              if(info.instances) info.instances.forEach(inst => instantiated.add(inst.component.toLowerCase()));
+          }
+          
+          var candidates = entities.filter(e => !instantiated.has(e));
+          var defaultTop = candidates.length > 0 ? candidates[0] : entities[0];
+          
+          var topEntity = prompt("Project loaded. Enter Top-Level Entity Name:", defaultTop);
+          
+          if (topEntity && vhdlLibrary[topEntity.toLowerCase()]) {
+             myDiagram.model.nodeDataArray = [];
+             myDiagram.model.linkDataArray = [];
+             buildHierarchy(vhdlLibrary[topEntity.toLowerCase()], topEntity + "_top", null);
+             myDiagram.layoutDiagram(true);
+             window.updateLinkVisibility();
+          } else {
+             alert("Entity not found in library.");
+          }
+        };
+        input.click();
+      }
+
+      function readFile(file) {
+        return new Promise((resolve, reject) => {
+          var reader = new FileReader();
+          reader.onload = function () {
+            var info = parseVHDL(reader.result);
+            if (info) {
+                vhdlLibrary[info.name.toLowerCase()] = info;
+            }
+            resolve();
+          };
+          reader.readAsText(file);
+        });
+      }
+
       function importVHDLModule(e, obj) {
         var input = document.createElement('input');
         input.type = 'file';
@@ -186,7 +283,10 @@
             var content = reader.result;
             var moduleInfo = parseVHDL(content);
             if (moduleInfo) {
-              createNodeFromModule(moduleInfo);
+              vhdlLibrary[moduleInfo.name.toLowerCase()] = moduleInfo;
+              buildHierarchy(moduleInfo, null, null);
+              myDiagram.layoutDiagram(true);
+              window.updateLinkVisibility();
             } else {
               alert('Invalid VHDL file!');
             }
@@ -319,11 +419,77 @@
                         portMap[kv[0].trim()] = sig.replace(/\s*\([\s\S]*?\)$/, "");
                     }
                 });
-                instances.push({ name: instLabel, component: compName, map: portMap });
+                instances.push({ name: instLabel, component: compName, map: portMap, code: instMatch[0] });
             }
         }
 
-        return { name: entityName, ports: ports, components: components, instances: instances };
+        // Find Concurrent Assignments (Glue Logic)
+        var assignments = [];
+        var assignRegex = /([a-zA-Z_][\w\(\)]*)\s*<=\s*([^;]+);/gi;
+        var processRegex = /(?:(\w+)\s*:\s*)?process\s*(?:\(([^)]*)\))?([\s\S]*?)end\s+process/gi;
+        
+        if (beginMatch) {
+             var archBody = cleanedVHDL.substring(beginMatch.index + beginMatch[0].length);
+             
+             // Parse Processes
+             var procMatch;
+             while ((procMatch = processRegex.exec(archBody)) !== null) {
+                 var procLabel = procMatch[1] || ("Process_" + (instances.length + 1));
+                 var sensitivityStr = procMatch[2] || "";
+                 var procBody = procMatch[3];
+                 
+                 var inputs = new Set();
+                 var outputs = new Set();
+                 
+                 if (sensitivityStr.trim()) {
+                     sensitivityStr.split(',').forEach(s => inputs.add(s.trim()));
+                 }
+                 
+                 // Scan body for assignments (outputs)
+                 var pAssignRegex = /([a-zA-Z_][\w]*)(?:\s*\([\s\S]*?\))?\s*<=/gi;
+                 var m;
+                 while ((m = pAssignRegex.exec(procBody)) !== null) outputs.add(m[1]);
+                 
+                 // Scan body for common inputs
+                 var edgeRegex = /(?:rising_edge|falling_edge)\s*\(\s*([a-zA-Z_][\w]*)\s*\)/gi;
+                 while ((m = edgeRegex.exec(procBody)) !== null) inputs.add(m[1]);
+                 
+                 var ifRegex = /if\s+([a-zA-Z_][\w]*)(?:\s*\([\s\S]*?\))?\s*=/gi;
+                 while ((m = ifRegex.exec(procBody)) !== null) inputs.add(m[1]);
+                 
+                 var caseRegex = /case\s+([a-zA-Z_][\w]*)(?:\s*\([\s\S]*?\))?\s+is/gi;
+                 while ((m = caseRegex.exec(procBody)) !== null) inputs.add(m[1]);
+
+                 var compName = "PROC_" + procLabel;
+                 var compPorts = [];
+                 var portMap = {};
+                 
+                 var allSigs = new Set([...inputs, ...outputs]);
+                 allSigs.forEach(sig => {
+                     if (!sig) return;
+                     var dir = 'in';
+                     if (outputs.has(sig)) {
+                         if (inputs.has(sig)) dir = 'inout';
+                         else dir = 'out';
+                     }
+                     compPorts.push({ name: sig, direction: dir, type: 'std_logic' });
+                     portMap[sig] = sig;
+                 });
+                 
+                 components[compName.toLowerCase()] = compPorts;
+                 instances.push({ name: procLabel, component: compName.toLowerCase(), map: portMap, isProcess: true, code: procMatch[0] });
+             }
+
+             // Remove process blocks to avoid complex sequential logic parsing
+             var noProcessBody = archBody.replace(/process[\s\S]*?end\s+process/gi, "");
+             
+             var assignMatch;
+             while ((assignMatch = assignRegex.exec(noProcessBody)) !== null) {
+                 assignments.push({ target: assignMatch[1].trim(), expression: assignMatch[2].trim(), code: assignMatch[0] });
+             }
+        }
+
+        return { name: entityName, ports: ports, components: components, instances: instances, assignments: assignments, originalCode: vhdlText };
       }
 
       function addPort(node, direction) {
@@ -381,7 +547,7 @@
 
 
 
-      function createNodeFromModule(moduleInfo) {
+      function buildHierarchy(moduleInfo, instanceKey, parentKey) {
         var inports = [];
         var outports = [];
 
@@ -394,29 +560,95 @@
           }
         });
 
-        // Generate unique instance name
-        var instanceName = moduleInfo.name + "_inst";
-        var count = 1;
-        while (myDiagram.model.findNodeDataForKey(instanceName)) {
-            instanceName = moduleInfo.name + "_inst" + count;
-            count++;
+        if (!instanceKey) {
+             var instanceName = moduleInfo.name + "_inst";
+             var count = 1;
+             while (myDiagram.model.findNodeDataForKey(instanceName)) {
+                instanceName = moduleInfo.name + "_inst" + count;
+                count++;
+             }
+             instanceKey = instanceName;
         }
 
         var newNode = {
-          key: instanceName,
+          key: instanceKey,
           entityName: moduleInfo.name,
           type: 'Module',
           isGroup: true, // Make it a group
           inports: inports,
           outports: outports,
-          ports: moduleInfo.ports
+          ports: moduleInfo.ports,
+          code: moduleInfo.originalCode
         };
+        if (parentKey) {
+          newNode.group = parentKey;
+        }
         myDiagram.model.addNodeData(newNode);
 
-        // Create internal instances
-        if (moduleInfo.instances && moduleInfo.instances.length > 0) {
-            moduleInfo.instances.forEach(function(inst) {
-                var compPorts = moduleInfo.components[inst.component] || [];
+        var localInstances = [];
+        if (moduleInfo.instances) {
+            localInstances = localInstances.concat(moduleInfo.instances);
+        }
+        var localComponents = {};
+
+        // Process assignments as glue logic instances
+        if (moduleInfo.assignments) {
+            moduleInfo.assignments.forEach(function(assign, idx) {
+                var target = assign.target;
+                // Strip slice info from target for signal matching
+                var cleanTargetSignal = target.replace(/\s*\([\s\S]*?\)$/, "");
+                var cleanTarget = target.replace(/[^\w]/g, "_");
+                var compName = "Logic_" + cleanTarget + "_" + idx;
+                
+                var expr = assign.expression;
+                var tokens = expr.match(/[a-zA-Z_][\w]*/g) || [];
+                var keywords = new Set(["not", "abs", "and", "or", "nand", "nor", "xor", "xnor", "mod", "rem", "sll", "srl", "sla", "sra", "rol", "ror", "others", "when", "else", "std_logic", "std_logic_vector", "unsigned", "signed", "to_integer", "to_unsigned", "to_signed", "downto", "to", "if", "then"]);
+                
+                var inputs = [];
+                tokens.forEach(function(t) {
+                    if (!keywords.has(t.toLowerCase()) && isNaN(parseInt(t[0]))) {
+                        if (!inputs.includes(t)) inputs.push(t);
+                    }
+                });
+                
+                var compPorts = [];
+                compPorts.push({ name: "Y", direction: "out", type: "std_logic" });
+                inputs.forEach(function(inp, i) {
+                    compPorts.push({ name: "I" + i, direction: "in", type: "std_logic" });
+                });
+                
+                localComponents[compName.toLowerCase()] = compPorts;
+                
+                var portMap = {};
+                portMap["Y"] = cleanTargetSignal;
+                inputs.forEach(function(inp, i) {
+                    portMap["I" + i] = inp;
+                });
+                
+                localInstances.push({
+                    name: "glue_" + idx,
+                    component: compName.toLowerCase(),
+                    map: portMap,
+                    isGlue: true,
+                    code: assign.code
+                });
+            });
+        }
+
+        // Create instances
+        localInstances.forEach(function(inst) {
+            var childInstanceKey = instanceKey + "_" + inst.name;
+            var compName = inst.component;
+            var childInfo = vhdlLibrary[compName];
+
+            if (childInfo && !inst.isGlue && !inst.isProcess) {
+                buildHierarchy(childInfo, childInstanceKey, instanceKey);
+            } else {
+                var compPorts = [];
+                if (childInfo) compPorts = childInfo.ports;
+                else if (localComponents[compName]) compPorts = localComponents[compName];
+                else if (moduleInfo.components[compName]) compPorts = moduleInfo.components[compName];
+
                 var instIn = [];
                 var instOut = [];
                 compPorts.forEach(function(p) {
@@ -424,24 +656,25 @@
                     else instOut.push({ name: p.name, type: p.type });
                 });
 
-                var instKey = instanceName + "_" + inst.name;
                 var instNode = {
-                    key: instKey,
+                    key: childInstanceKey,
                     entityName: inst.component,
                     type: 'Module',
-                    group: instanceName, // Parent is the main module
+                    group: instanceKey,
                     inports: instIn,
                     outports: instOut,
-                    ports: compPorts
+                    ports: compPorts,
+                    color: inst.isGlue ? "plum" : (inst.isProcess ? "lightsalmon" : "cornflowerblue"),
+                    code: inst.code
                 };
                 myDiagram.model.addNodeData(instNode);
-            });
+            }
+        });
 
-            createInternalLinks(moduleInfo, instanceName);
-        }
+        createInternalLinks(moduleInfo, instanceKey, localInstances, localComponents);
       }
 
-      function createInternalLinks(moduleInfo, parentKey) {
+      function createInternalLinks(moduleInfo, parentKey, instances, localComponents) {
           // Map: SignalName -> Array of { key, port, isParent, direction }
           var netlist = {};
 
@@ -453,9 +686,11 @@
           });
 
           // Add Instance Ports to netlist
-          moduleInfo.instances.forEach(function(inst) {
+          instances.forEach(function(inst) {
               var instKey = parentKey + "_" + inst.name;
-              var compDef = moduleInfo.components[inst.component];
+              var compName = inst.component;
+              var compDef = (vhdlLibrary[compName] && vhdlLibrary[compName].ports) || localComponents[compName] || moduleInfo.components[compName];
+              
               var compPortDir = {};
               var compPortNameMap = {};
               if (compDef) {
@@ -497,19 +732,45 @@
               });
 
               if (sources.length > 0) {
-                  sources.forEach(function(src) {
-                      destinations.forEach(function(dst) {
-                          if (src.key === dst.key && src.port === dst.port) return;
-                          if (src.isParent && dst.isParent) return;
+                  if (destinations.length > 1) {
+                      var junctionKey = parentKey + "_net_" + signal;
+                      var junctionNode = {
+                          key: junctionKey,
+                          category: "Junction",
+                          group: parentKey
+                      };
+                      myDiagram.model.addNodeData(junctionNode);
 
+                      sources.forEach(function(src) {
                           myDiagram.model.addLinkData({
                               from: src.key,
                               fromPort: src.port,
+                              to: junctionKey
+                          });
+                      });
+
+                      destinations.forEach(function(dst) {
+                          myDiagram.model.addLinkData({
+                              from: junctionKey,
                               to: dst.key,
                               toPort: dst.port
                           });
                       });
-                  });
+                  } else {
+                      sources.forEach(function(src) {
+                          destinations.forEach(function(dst) {
+                              if (src.key === dst.key && src.port === dst.port) return;
+                              if (src.isParent && dst.isParent) return;
+
+                              myDiagram.model.addLinkData({
+                                  from: src.key,
+                                  fromPort: src.port,
+                                  to: dst.key,
+                                  toPort: dst.port
+                              });
+                          });
+                      });
+                  }
               }
           }
       }
@@ -534,10 +795,32 @@
       myDiagram.linkTemplate = $(go.Link, {
         routing: go.Routing.Orthogonal,
         corner: 25,
+        routing: go.Link.AvoidsNodes,
+        curve: go.Link.JumpOver,
+        corner: 10,
         relinkableFrom: true,
         relinkableTo: true,
         mouseEnter: function(e, link) { highlightNet(link, true); },
-        mouseLeave: function(e, link) { highlightNet(link, false); }
+        mouseLeave: function(e, link) { highlightNet(link, false); },
+        toolTip:
+          $("ToolTip",
+            $(go.TextBlock, { margin: 4 },
+              new go.Binding("text", "", function(d, obj) {
+                var link = obj.part.adornedPart;
+                if (!link) return "";
+                var fromNode = link.fromNode;
+                var type = "Unknown";
+                if (fromNode) {
+                   var nd = fromNode.data;
+                   if (nd.type === "TopInput") type = nd.portType || "std_logic";
+                   else if (nd.ports) {
+                       var p = nd.ports.find(function(p) { return p.name === link.fromPortId; });
+                       if (p) type = p.type;
+                   }
+                }
+                return "Net: " + link.fromPortId + "\nType: " + type + "\nFrom: " + (fromNode ? fromNode.key : "?") + "\nTo: " + (link.toNode ? link.toNode.key : "?");
+              }))
+          )
       },
         $(go.Shape, { stroke: 'gray', strokeWidth: 2 },
           new go.Binding("stroke", "isHighlighted", h => h ? "red" : "gray").ofObject(),
@@ -552,18 +835,106 @@
           new go.Binding("font", "isHighlighted", h => h ? "bold 12pt sans-serif" : "10pt sans-serif").ofObject())
       );
 
-      function highlightNet(link, show) {
-        var diagram = link.diagram;
+      function highlightNet(obj, show) {
+        var diagram = obj.diagram;
         diagram.startTransaction("highlight");
-        var fromNode = link.fromNode;
-        var fromPortId = link.fromPortId;
-        if (fromNode) {
-            fromNode.findLinksOutOf(fromPortId).each(function(l) {
-                l.isHighlighted = show;
-                l.layerName = show ? "Foreground" : "";
-            });
+        
+        var visited = new Set();
+        var queue = [];
+        
+        if (obj instanceof go.Link) {
+            queue.push(obj);
+        } else if (obj instanceof go.Node && obj.category === "Junction") {
+            queue.push(obj);
         }
+        
+        while (queue.length > 0) {
+            var current = queue.shift();
+            if (visited.has(current)) continue;
+            visited.add(current);
+            
+            if (current instanceof go.Link) {
+                current.isHighlighted = show;
+                current.layerName = show ? "Foreground" : "";
+                
+                var fromNode = current.fromNode;
+                var toNode = current.toNode;
+                
+                if (fromNode) {
+                    if (fromNode.category === "Junction") {
+                        if (!visited.has(fromNode)) queue.push(fromNode);
+                    } else {
+                        var fromPortId = current.fromPortId;
+                        fromNode.findLinksConnected(fromPortId).each(function(l) { if (!visited.has(l)) queue.push(l); });
+                    }
+                }
+                
+                if (toNode) {
+                    if (toNode.category === "Junction") {
+                        if (!visited.has(toNode)) queue.push(toNode);
+                    } else {
+                        var toPortId = current.toPortId;
+                        toNode.findLinksConnected(toPortId).each(function(l) { if (!visited.has(l)) queue.push(l); });
+                    }
+                }
+            } else if (current instanceof go.Node && current.category === "Junction") {
+                current.findLinksConnected().each(function(l) { if (!visited.has(l)) queue.push(l); });
+            }
+        }
+        
         diagram.commitTransaction("highlight");
+      }
+
+      window.updateLinkVisibility = function() {
+        var anyChecked = false;
+        myDiagram.nodes.each(function(n) {
+          if (n.data.showNets) anyChecked = true;
+        });
+
+        myDiagram.startTransaction("updateLinkVisibility");
+        
+        if (!anyChecked) {
+          myDiagram.links.each(function(l) { l.visible = true; });
+          myDiagram.nodes.each(function(n) { 
+            if (n.category === "Junction") n.visible = true; 
+          });
+        } else {
+          myDiagram.links.each(function(l) { l.visible = false; });
+          myDiagram.nodes.each(function(n) { 
+            if (n.category === "Junction") n.visible = false; 
+          });
+
+          myDiagram.nodes.each(function(n) {
+            if (n.data.showNets) {
+              showNetsConnectedTo(n);
+            }
+          });
+        }
+        myDiagram.commitTransaction("updateLinkVisibility");
+      }
+
+      function showNetsConnectedTo(node) {
+        var visited = new Set();
+        var queue = [];
+        
+        node.findLinksConnected().each(function(l) { queue.push(l); });
+        
+        while(queue.length > 0) {
+          var obj = queue.shift();
+          if (visited.has(obj)) continue;
+          visited.add(obj);
+          
+          if (obj instanceof go.Link) {
+            obj.visible = true;
+            var from = obj.fromNode;
+            var to = obj.toNode;
+            if (from && from.category === "Junction" && !visited.has(from)) { from.visible = true; queue.push(from); }
+            if (to && to.category === "Junction" && !visited.has(to)) { to.visible = true; queue.push(to); }
+          } else if (obj instanceof go.Node && obj.category === "Junction") {
+             obj.visible = true;
+             obj.findLinksConnected().each(function(l) { if (!visited.has(l)) queue.push(l); });
+          }
+        }
       }
 
       // Property Inspector Listener
@@ -594,10 +965,23 @@
                                   "Type: " + type;
         } else if (sel instanceof go.Node) {
             var data = sel.data;
-            inspector.innerHTML = "<b>Node Selected</b><br/>" +
+            var content = "<b>Node Selected</b><br/>" +
                                   "Key: " + data.key + "<br/>" +
                                   "Entity: " + (data.entityName || "N/A") + "<br/>" +
                                   "Type: " + data.type;
+            
+            if (data.code) {
+                var fmtCode = data.code;
+                // Simple formatting for flattened code (internal nodes)
+                if (!data.isGroup) {
+                     fmtCode = fmtCode.replace(/;/g, ";\n").replace(/\b(begin|is|then|loop)\b/gi, "$1\n");
+                }
+                content += "<br/><hr/><b>VHDL Code:</b><pre style='white-space: pre-wrap; word-wrap: break-word;'><code class='vhdl'>" + 
+                           fmtCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + 
+                           "</code></pre>";
+            }
+            inspector.innerHTML = content;
+            if (window.hljs) hljs.highlightAll();
         } else {
             inspector.innerHTML = "Select an item to view details";
         }
@@ -614,6 +998,8 @@
       myDiagram.model = go.Model.fromJson(
         document.getElementById('mySavedModel').value
       );
+      myDiagram.layoutDiagram(true);
+      if (window.updateLinkVisibility) window.updateLinkVisibility();
     }
 
 
@@ -820,6 +1206,139 @@ function instantiateComponent(moduleData) {
         <button onclick="load()">Load</button>
         <button onclick="exportVHDL()">Export VHDL</button>
         <button onclick="autoConnect()">Auto Connect</button>
+        <button onclick="loadProject()">Load Project Folder</button>
+
+        Diagram Model saved in JSON format:
+      </div>
+      <textarea id="mySavedModel" style="width: 100%; height: 300px">
+      { "class": "GraphLinksModel",
+      "copiesArrays": true,
+      "copiesArrayObjects": true,
+      "nodeCategoryProperty": "type",
+      "linkFromPortIdProperty": "fromPort",
+      "linkToPortIdProperty": "toPort",
+      "nodeDataArray": [
+    ],
+      "linkDataArray": [
+    ]}
+    </textarea>
+    </div>
+  </div>
+
+
+  </div>
+  <!-- * * * * * * * * * * * * * -->
+  <!--  End of GoJS sample code  -->
+  </div>
+
+</html>st ports = moduleData.ports || []; // Handle undefined ports
+    ports.forEach((port, index) => {
+        const separator = index < ports.length - 1 ? ',' : '';
+        
+        let signalName = "open"; 
+
+        myDiagram.links.each(function(link) {
+            if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
+                if (link.toNode.data.type === "TopOutput") signalName = link.toNode.data.name;
+                else if (link.toNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+            } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
+                if (link.fromNode.data.type === "TopInput") signalName = link.fromNode.data.name;
+                else if (link.fromNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+            }
+        });
+
+        vhdl += `    ${port.name} => ${signalName}${separator}\n`;
+    });
+
+    vhdl += `  );\n\n`;
+    return vhdl;
+}
+
+  </script>
+
+
+  <div id="sample">
+    <div style="display: flex; width: 100%;">
+      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
+      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
+          <h3>Inspector</h3>
+          <div id="inspectorContent">Select an item to view details</div>
+      </div>
+    </div>
+
+    <div>
+      <div>
+        <button id="SaveButton" onclick="save()">Save</button>
+        <button onclick="load()">Load</button>
+        <button onclick="exportVHDL()">Export VHDL</button>
+        <button onclick="autoConnect()">Auto Connect</button>
+        <button onclick="loadProject()">Load Project Folder</button>
+
+        Diagram Model saved in JSON format:
+      </div>
+      <textarea id="mySavedModel" style="width: 100%; height: 300px">
+      { "class": "GraphLinksModel",
+      "copiesArrays": true,
+      "copiesArrayObjects": true,
+      "nodeCategoryProperty": "type",
+      "linkFromPortIdProperty": "fromPort",
+      "linkToPortIdProperty": "toPort",
+      "nodeDataArray": [
+    ],
+      "linkDataArray": [
+    ]}
+    </textarea>
+    </div>
+  </div>
+
+
+  </div>
+  <!-- * * * * * * * * * * * * * -->
+  <!--  End of GoJS sample code  -->
+  </div>
+
+</html>st ports = moduleData.ports || []; // Handle undefined ports
+    ports.forEach((port, index) => {
+        const separator = index < ports.length - 1 ? ',' : '';
+        
+        let signalName = "open"; 
+
+        myDiagram.links.each(function(link) {
+            if (link.fromNode.key === moduleData.key && link.fromPortId === port.name) {
+                if (link.toNode.data.type === "TopOutput") signalName = link.toNode.data.name;
+                else if (link.toNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+            } else if (link.toNode.key === moduleData.key && link.toPortId === port.name) {
+                if (link.fromNode.data.type === "TopInput") signalName = link.fromNode.data.name;
+                else if (link.fromNode.data.type === "Module") signalName = `${link.fromNode.key}_${link.fromPortId}_to_${link.toNode.key}_${link.toPortId}`;
+            }
+        });
+
+        vhdl += `    ${port.name} => ${signalName}${separator}\n`;
+    });
+
+    vhdl += `  );\n\n`;
+    return vhdl;
+}
+
+  </script>
+
+
+  <div id="sample">
+    <div style="display: flex; width: 100%;">
+      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
+      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
+          <h3>Inspector</h3>
+          <div id="inspectorContent">Select an item to view details</div>
+      </div>
+    </div>
+
+    <div>
+      <div>
+        <button id="SaveButton" onclick="save()">Save</button>
+        <button onclick="load()">Load</button>
+        <button onclick="exportVHDL()">Export VHDL</button>
+        <button onclick="autoConnect()">Auto Connect</button>
+        <button onclick="loadProject()">Load Project Folder</button>
 
         Diagram Model saved in JSON format:
       </div>
