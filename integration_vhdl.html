@@ -842,8 +842,13 @@
         corner: 10,
         relinkableFrom: true,
         relinkableTo: true,
+        selectionAdorned: false,
+        selectionChanged: function(part) { part.updateTargetBindings(); },
         mouseEnter: function(e, link) { highlightNet(link, true); },
-        mouseLeave: function(e, link) { highlightNet(link, false); },
+        mouseLeave: function(e, link) { 
+            if (!link.isSelected && (!link.fromNode || !link.fromNode.isSelected) && (!link.toNode || !link.toNode.isSelected))
+                highlightNet(link, false); 
+        },
         toolTip:
           $("ToolTip",
             $(go.TextBlock, { margin: 4 },
@@ -865,16 +870,16 @@
           )
       },
         $(go.Shape, { stroke: 'gray', strokeWidth: 2 },
-          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "gray").ofObject(),
-          new go.Binding("strokeWidth", "isHighlighted", h => h ? 3 : 2).ofObject()),
+          new go.Binding("stroke", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? "red" : "gray").ofObject(),
+          new go.Binding("strokeWidth", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? 4 : 2).ofObject()),
         $(go.Shape, { stroke: 'gray', fill: 'gray', toArrow: 'Standard' },
-          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "gray").ofObject(),
-          new go.Binding("fill", "isHighlighted", h => h ? "red" : "gray").ofObject()),
+          new go.Binding("stroke", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? "red" : "gray").ofObject(),
+          new go.Binding("fill", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? "red" : "gray").ofObject()),
         $(go.TextBlock, 
           { segmentOffset: new go.Point(0, -10), font: "10pt sans-serif", stroke: "black", background: "white" },
           new go.Binding("text", "fromPort"),
-          new go.Binding("stroke", "isHighlighted", h => h ? "red" : "black").ofObject(),
-          new go.Binding("font", "isHighlighted", h => h ? "bold 12pt sans-serif" : "10pt sans-serif").ofObject())
+          new go.Binding("stroke", "isHighlighted", (h, tb) => (h || tb.part.isSelected) ? "red" : "black").ofObject(),
+          new go.Binding("font", "isHighlighted", (h, tb) => (h || tb.part.isSelected) ? "bold 12pt sans-serif" : "10pt sans-serif").ofObject())
       );
 
       function highlightNet(obj, show) {
@@ -888,6 +893,8 @@
             queue.push(obj);
         } else if (obj instanceof go.Node && obj.category === "Junction") {
             queue.push(obj);
+        } else if (obj instanceof go.Node) {
+            obj.findLinksConnected().each(function(l) { queue.push(l); });
         }
         
         while (queue.length > 0) {
@@ -981,6 +988,17 @@
 
       // Property Inspector Listener
       myDiagram.addDiagramListener("ChangedSelection", function(e) {
+        // Clear highlights
+        e.diagram.startTransaction("clear highlights");
+        e.diagram.links.each(function(l) { l.isHighlighted = false; l.layerName = ""; });
+        e.diagram.nodes.each(function(n) { if (n.category === "Junction") n.isHighlighted = false; });
+        e.diagram.commitTransaction("clear highlights");
+
+        // Highlight selected nodes' nets
+        e.diagram.selection.each(function(part) {
+            if (part instanceof go.Node) highlightNet(part, true);
+        });
+
         var inspector = document.getElementById("inspectorContent");
         var sel = e.diagram.selection.first();
         if (sel instanceof go.Link) {
@@ -1287,33 +1305,7 @@ function searchDiagram() {
     var safeText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     var regex = new RegExp(safeText, "i");
     
-    var it = myDiagram.nodes;
     var matches = [];
-    while (it.next()) {
-        var node = it.value;
-        var data = node.data;
-        var matchInfo = [];
-
-        if (data.key && regex.test(data.key)) matchInfo.push("Key");
-        if (data.entityName && regex.test(data.entityName)) matchInfo.push("Entity");
-        if (data.name && regex.test(data.name)) matchInfo.push("Name");
-        if (data.ports) {
-            var foundPorts = [];
-            for (var i = 0; i < data.ports.length; i++) {
-                if (regex.test(data.ports[i].name)) {
-                    foundPorts.push(data.ports[i].name);
-                }
-            }
-            if (foundPorts.length > 0) {
-                matchInfo.push("Ports: " + foundPorts.join(", "));
-            }
-        }
-
-        if (matchInfo.length > 0) {
-            node.isSelected = true;
-            matches.push({ part: node, info: matchInfo });
-        }
-    }
 
     var lit = myDiagram.links;
     while (lit.next()) {
