@@ -76,12 +76,12 @@
 
           headerPanel.add($("CheckBox", "showNets",
               { "ButtonIcon.stroke": "green", "_buttonFillOver": "lightgreen", "_buttonStrokeOver": "green", margin: 2 },
-              $(go.TextBlock, "Show Nets", { stroke: "white", font: "10pt sans-serif" })
+              $(go.TextBlock, "Show Nets", { stroke: "black", font: "10pt sans-serif" })
           ));
           
-          headerPanel.add($(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "white" },
+          headerPanel.add($(go.TextBlock, { margin: 2, font: "bold 12pt sans-serif", stroke: "black" },
                   new go.Binding("text", "entityName")));
-          headerPanel.add($(go.TextBlock, { margin: 2, font: "italic 10pt sans-serif", stroke: "white" },
+          headerPanel.add($(go.TextBlock, { margin: 2, font: "italic 10pt sans-serif", stroke: "black" },
                   new go.Binding("text", "key")));
 
           // Table Panel
@@ -108,7 +108,7 @@
                       $(go.Shape, { width: 10, height: 10, stroke: null },
                         new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Circle"),
                         new go.Binding("fill", "type", t => isVector(t) ? "cyan" : "orange")),
-                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 0, 0, 5), stroke: "white" },
+                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 0, 0, 5), stroke: "black" },
                         new go.Binding("text", "name"))
                     )
                 }
@@ -125,7 +125,7 @@
                         fromEndSegmentLength: 30, toEndSegmentLength: 30
                       },
                       new go.Binding("portId", "name"),
-                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "white" },
+                      $(go.TextBlock, { font: "8pt sans-serif", margin: new go.Margin(0, 5, 0, 0), stroke: "black" },
                         new go.Binding("text", "name")),
                       $(go.Shape, { width: 10, height: 10, stroke: null },
                         new go.Binding("figure", "type", t => isVector(t) ? "Diamond" : "Rectangle"),
@@ -151,7 +151,7 @@
                 { click: function(e, obj) { addPort(obj.part.adornedPart, "out"); } })
               )
             },
-            $(go.Shape, "Rectangle", { fill: background, stroke: "white", strokeWidth: 2, minSize: new go.Size(150, 100) },
+            $(go.Shape, "Rectangle", { fill: background, stroke: "black", strokeWidth: 1, minSize: new go.Size(150, 100) },
               new go.Binding("fill", "color", function(c) { return c || background; })),
             tablePanel
           );
@@ -159,7 +159,8 @@
           if (isGroup) {
               template.layout = $(go.LayeredDigraphLayout, { direction: 0, columnSpacing: 10 });
               template.layout = $(go.LayeredDigraphLayout, { direction: 0, columnSpacing: 20, layerSpacing: 50, setsPortSpots: false });
-              template.isSubGraphExpanded = true;
+              template.isSubGraphExpanded = false;
+              template.bind(new go.Binding("isSubGraphExpanded", "isExpanded"));
           }
           return template;
       }
@@ -250,7 +251,7 @@
           if (topEntity && vhdlLibrary[topEntity.toLowerCase()]) {
              myDiagram.model.nodeDataArray = [];
              myDiagram.model.linkDataArray = [];
-             buildHierarchy(vhdlLibrary[topEntity.toLowerCase()], topEntity + "_top", null);
+             buildHierarchy(vhdlLibrary[topEntity.toLowerCase()], topEntity + "_top", null, 0);
              myDiagram.layoutDiagram(true);
              window.updateLinkVisibility();
           } else {
@@ -301,7 +302,7 @@
               if (key) {
                   var info = vhdlLibrary[key];
                   console.log("Imported entity:", info.name);
-                  buildHierarchy(info, null, null);
+                  buildHierarchy(info, null, null, 0);
                   myDiagram.layoutDiagram(true);
                   window.updateLinkVisibility();
               }
@@ -579,7 +580,9 @@
 
 
 
-      function buildHierarchy(moduleInfo, instanceKey, parentKey) {
+      function buildHierarchy(moduleInfo, instanceKey, parentKey, level) {
+        level = level || 0;
+        var levelColors = ["#E3F2FD", "#E8F5E9", "#FFF3E0", "#F3E5F5", "#E0F2F1", "#FFEBEE"];
         var inports = [];
         var outports = [];
 
@@ -608,10 +611,12 @@
           fileName: moduleInfo.fileName,
           type: 'Module',
           isGroup: true, // Make it a group
+          isExpanded: (level === 0),
           inports: inports,
           outports: outports,
           ports: moduleInfo.ports,
-          code: moduleInfo.originalCode
+          code: moduleInfo.originalCode,
+          color: levelColors[level % levelColors.length]
         };
         if (parentKey) {
           newNode.group = parentKey;
@@ -675,7 +680,7 @@
             var childInfo = vhdlLibrary[compName];
 
             if (childInfo && !inst.isGlue && !inst.isProcess) {
-                buildHierarchy(childInfo, childInstanceKey, instanceKey);
+                buildHierarchy(childInfo, childInstanceKey, instanceKey, level + 1);
             } else {
                 if (!childInfo && !inst.isGlue && !inst.isProcess) {
                     console.warn("Component not found in library:", compName);
