@@ -204,6 +204,7 @@
             mouseEnter: function(e, node) { highlightNet(node, true); },
             mouseLeave: function(e, node) { highlightNet(node, false); }
           },
+          new go.Binding("visible", "visible"),
           $(go.Shape, "Circle", 
             { width: 6, height: 6, fill: "black", stroke: null })
         ));
@@ -612,6 +613,7 @@
           type: 'Module',
           isGroup: true, // Make it a group
           isExpanded: (level === 0),
+          showNets: (level === 0),
           inports: inports,
           outports: outports,
           ports: moduleInfo.ports,
@@ -773,13 +775,27 @@
                   }
               });
 
+              // Determine if net is global (heuristic: name or high fanout)
+              var isGlobal = false;
+              var sigLower = signal.toLowerCase();
+              if (sigLower.includes("clk") || sigLower.includes("clock") || sigLower.includes("rst") || sigLower.includes("reset")) {
+                  isGlobal = true;
+              } else if (instances.length > 3) {
+                  // Check fanout: if connected to > 80% of instances
+                  var touchedInstances = new Set();
+                  sources.forEach(function(s) { if (!s.isParent) touchedInstances.add(s.key); });
+                  destinations.forEach(function(d) { if (!d.isParent) touchedInstances.add(d.key); });
+                  if (touchedInstances.size >= instances.length * 0.8) isGlobal = true;
+              }
+
               if (sources.length > 0) {
                   if (destinations.length > 1) {
                       var junctionKey = parentKey + "_net_" + signal;
                       var junctionNode = {
                           key: junctionKey,
                           category: "Junction",
-                          group: parentKey
+                          group: parentKey,
+                          isGlobal: isGlobal
                       };
                       myDiagram.model.addNodeData(junctionNode);
 
@@ -787,7 +803,9 @@
                           myDiagram.model.addLinkData({
                               from: src.key,
                               fromPort: src.port,
-                              to: junctionKey
+                          to: junctionKey,
+                          group: parentKey,
+                          isGlobal: isGlobal
                           });
                       });
 
@@ -795,7 +813,9 @@
                           myDiagram.model.addLinkData({
                               from: junctionKey,
                               to: dst.key,
-                              toPort: dst.port
+                          toPort: dst.port,
+                          group: parentKey,
+                          isGlobal: isGlobal
                           });
                       });
                   } else {
@@ -808,7 +828,9 @@
                                   from: src.key,
                                   fromPort: src.port,
                                   to: dst.key,
-                                  toPort: dst.port
+                                  toPort: dst.port,
+                                  group: parentKey,
+                                  isGlobal: isGlobal
                               });
                           });
                       });
@@ -869,6 +891,7 @@
               }))
           )
       },
+        new go.Binding("visible", "visible"),
         $(go.Shape, { stroke: 'gray', strokeWidth: 2 },
           new go.Binding("stroke", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? "red" : "gray").ofObject(),
           new go.Binding("strokeWidth", "isHighlighted", (h, shape) => (h || shape.part.isSelected) ? 4 : 2).ofObject()),
@@ -935,30 +958,44 @@
       }
 
       window.updateLinkVisibility = function() {
-        var anyChecked = false;
-        myDiagram.nodes.each(function(n) {
-          if (n.data.showNets) anyChecked = true;
-        });
+        var hideGlobal = document.getElementById('hideGlobalNets') ? document.getElementById('hideGlobalNets').checked : false;
+        var visibleGroups = new Set();
+        var nodes = myDiagram.model.nodeDataArray;
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            if (n.showNets) visibleGroups.add(n.key);
+        }
 
         myDiagram.startTransaction("updateLinkVisibility");
         
-        if (!anyChecked) {
-          myDiagram.links.each(function(l) { l.visible = true; });
-          myDiagram.nodes.each(function(n) { 
-            if (n.category === "Junction") n.visible = true; 
-          });
-        } else {
-          myDiagram.links.each(function(l) { l.visible = false; });
-          myDiagram.nodes.each(function(n) { 
-            if (n.category === "Junction") n.visible = false; 
-          });
-
-          myDiagram.nodes.each(function(n) {
-            if (n.data.showNets) {
-              showNetsConnectedTo(n);
+        var links = myDiagram.model.linkDataArray;
+        for (var i = 0; i < links.length; i++) {
+            var l = links[i];
+            var isVisible = true;
+            if (l.group) {
+                isVisible = visibleGroups.has(l.group);
             }
-          });
+            if (isVisible && hideGlobal && l.isGlobal) {
+                isVisible = false;
+            }
+            if (l.visible !== isVisible) {
+                myDiagram.model.setDataProperty(l, "visible", isVisible);
+            }
         }
+
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            if (n.category === "Junction" && n.group) {
+                var isVisible = visibleGroups.has(n.group);
+                if (isVisible && hideGlobal && n.isGlobal) {
+                    isVisible = false;
+                }
+                if (n.visible !== isVisible) {
+                    myDiagram.model.setDataProperty(n, "visible", isVisible);
+                }
+            }
+        }
+        
         myDiagram.commitTransaction("updateLinkVisibility");
       }
 
@@ -1400,6 +1437,7 @@ function searchDiagram() {
       <div style="margin-bottom: 5px;">
         <input id="searchInput" placeholder="Search..." style="margin-right: 5px" onkeydown="if(event.key==='Enter') searchDiagram()" />
         <button onclick="searchDiagram()">Search</button>
+        <label style="margin-left: 10px; margin-right: 10px; font-family: sans-serif; font-size: 14px;"><input type="checkbox" id="hideGlobalNets" onclick="updateLinkVisibility()"> Hide Global Nets</label>
         <button id="SaveButton" onclick="save()">Save</button>
         <button onclick="load()">Load</button>
         <button onclick="exportVHDL()">Export VHDL</button>
