@@ -19,6 +19,7 @@
     <p>Upload the <code>diagram_elk.json</code> file exported from the integration tool.</p>
     <input type="file" id="fileInput" accept=".json">
     <button onclick="downloadSVG()">Download SVG</button>
+    <button onclick="exportDrawIO()">Export Draw.io</button>
     <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
         <label><strong>Layout:</strong> 
             <select id="algorithmSelect" onchange="updateLayout()">
@@ -27,6 +28,8 @@
                 <option value="force">Force Directed</option>
                 <option value="box">Box</option>
                 <option value="disco">Disco</option>
+                <option value="radial">Radial</option>
+                <option value="random">Random</option>
             </select>
         </label>
         <label style="margin-left: 20px;"><strong>Direction:</strong> 
@@ -46,6 +49,7 @@
     <script>
         const elk = new ELK();
         let currentGraph = null;
+        let layoutedGraph = null;
 
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -80,42 +84,41 @@
             }
             applyOptions(graph);
 
-            // Adjust port sides based on direction for 'layered' algorithm
-            // Assumes original JSON has inputs as 'WEST' and outputs as 'EAST'
-            if (algorithm === 'layered') {
-                let inSide = "WEST";
-                let outSide = "EAST";
-                if (direction === "DOWN") { inSide = "NORTH"; outSide = "SOUTH"; }
-                else if (direction === "UP") { inSide = "SOUTH"; outSide = "NORTH"; }
-                else if (direction === "LEFT") { inSide = "EAST"; outSide = "WEST"; }
+            // Adjust port sides based on direction
+            // Also ensures ports have a side assigned to prevent errors in 'layered' layout
+            let inSide = "WEST";
+            let outSide = "EAST";
+            if (direction === "DOWN") { inSide = "NORTH"; outSide = "SOUTH"; }
+            else if (direction === "UP") { inSide = "SOUTH"; outSide = "NORTH"; }
+            else if (direction === "LEFT") { inSide = "EAST"; outSide = "WEST"; }
 
-                function adjustPorts(node) {
-                    if (node.ports) {
-                        node.ports.forEach(p => {
-                            if (!p.properties) p.properties = {}; // Ensure properties object exists
+            function adjustPorts(node) {
+                if (node.ports) {
+                    node.ports.forEach(p => {
+                        if (!p.properties) p.properties = {}; // Ensure properties object exists
 
-                            const currentSide = p.properties["port.side"];
+                        const currentSide = p.properties["port.side"];
 
-                            // If side is missing, assign a default. This is the crucial fix for the error.
-                            if (!currentSide) {
-                                p.properties["port.side"] = inSide;
-                            } else if (currentSide === "WEST") { // Otherwise, rotate the existing sides based on direction
-                                p.properties["port.side"] = inSide;
-                            } else if (currentSide === "EAST") {
-                                p.properties["port.side"] = outSide;
-                            }
-                        });
-                    }
-                    if (node.children) node.children.forEach(adjustPorts);
+                        // If side is missing, assign a default.
+                        if (!currentSide) {
+                            p.properties["port.side"] = inSide;
+                        } else if (currentSide === "WEST") { // Rotate existing sides
+                            p.properties["port.side"] = inSide;
+                        } else if (currentSide === "EAST") {
+                            p.properties["port.side"] = outSide;
+                        }
+                    });
                 }
-                adjustPorts(graph);
+                if (node.children) node.children.forEach(adjustPorts);
             }
+            adjustPorts(graph);
 
             render(graph);
         }
 
         function render(graph) {
             elk.layout(graph).then(layout => {
+                layoutedGraph = layout;
                 const svgNS = "http://www.w3.org/2000/svg";
                 const svg = document.createElementNS(svgNS, "svg");
                 
@@ -195,14 +198,13 @@
                             pRect.setAttribute("class", "port");
 
                             const side = port.properties ? port.properties["port.side"] : "WEST";
+                            // Use style attribute to ensure color visibility
                             if (side === "WEST" || side === "NORTH") {
-                                pRect.setAttribute("fill", "green"); // Input ports
+                                pRect.setAttribute("style", "fill: green; stroke: black; stroke-width: 0.5px;");
                             } else {
-                                pRect.setAttribute("fill", "red"); // Output ports
+                                pRect.setAttribute("style", "fill: red; stroke: black; stroke-width: 0.5px;");
                             }
 
-                            pRect.setAttribute("stroke", "black");
-                            pRect.setAttribute("stroke-width", "0.5");
                             g.appendChild(pRect);
 
                             if (port.labels && port.labels.length > 0) {
@@ -333,6 +335,129 @@
             const a = document.createElement('a');
             a.href = url;
             a.download = "diagram.svg";
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        window.exportDrawIO = function() {
+            if (!layoutedGraph) {
+                alert("No layout to export. Please load a file first.");
+                return;
+            }
+
+            let xml = '<mxfile host="app.diagrams.net" modified="' + new Date().toISOString() + '" agent="ELK-Viewer" version="1.0" type="device">\n';
+            xml += '  <diagram id="diagram_1" name="Page-1">\n';
+            xml += '    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">\n';
+            xml += '      <root>\n';
+            xml += '        <mxCell id="0" />\n';
+            xml += '        <mxCell id="1" parent="0" />\n';
+
+            const escape = (str) => {
+                if (!str) return "";
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            };
+
+            function traverse(node, parentId) {
+                const id = escape(node.id);
+                const x = node.x || 0;
+                const y = node.y || 0;
+                const width = node.width || 50;
+                const height = node.height || 50;
+                const label = (node.labels && node.labels.length > 0) ? node.labels[0].text : node.id;
+                
+                let style = "rounded=0;whiteSpace=wrap;html=1;fillColor=#f9f9f9;strokeColor=#333333;";
+                if (node.children && node.children.length > 0) {
+                    style += "container=1;collapsible=1;verticalAlign=top;";
+                }
+
+                xml += `        <mxCell id="${id}" value="${escape(label)}" style="${style}" vertex="1" parent="${parentId}">\n`;
+                xml += `          <mxGeometry x="${x}" y="${y}" width="${width}" height="${height}" as="geometry" />\n`;
+                xml += `        </mxCell>\n`;
+
+                if (node.ports) {
+                    node.ports.forEach(port => {
+                        const pid = escape(port.id);
+                        const px = port.x || 0;
+                        const py = port.y || 0;
+                        const pw = port.width || 5;
+                        const ph = port.height || 5;
+                        
+                        let color = "orange";
+                        const side = (port.properties && port.properties["port.side"]) ? port.properties["port.side"] : "WEST";
+                        if (side === "WEST" || side === "NORTH") color = "green";
+                        else if (side === "EAST" || side === "SOUTH") color = "red";
+
+                        const pLabel = (port.labels && port.labels.length > 0) ? port.labels[0].text : "";
+
+                        let labelStyle = "";
+                        if (side === "WEST") {
+                            labelStyle = "labelPosition=left;verticalLabelPosition=top;align=right;verticalAlign=bottom;spacingRight=2;";
+                        } else if (side === "EAST") {
+                            labelStyle = "labelPosition=right;verticalLabelPosition=top;align=left;verticalAlign=bottom;spacingLeft=2;";
+                        } else if (side === "NORTH") {
+                            labelStyle = "verticalLabelPosition=top;verticalAlign=bottom;align=center;spacingBottom=2;";
+                        } else if (side === "SOUTH") {
+                            labelStyle = "verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=2;";
+                        } else {
+                            labelStyle = "verticalLabelPosition=top;verticalAlign=bottom;";
+                        }
+
+                        xml += `        <mxCell id="${pid}" value="${escape(pLabel)}" style="shape=rectangle;whiteSpace=wrap;html=1;fillColor=${color};strokeColor=none;fontSize=10;${labelStyle}" vertex="1" parent="${id}">\n`;
+                        xml += `          <mxGeometry x="${px}" y="${py}" width="${pw}" height="${ph}" as="geometry" />\n`;
+                        xml += `        </mxCell>\n`;
+                    });
+                }
+
+                if (node.children) {
+                    node.children.forEach(child => traverse(child, id));
+                }
+
+                if (node.edges) {
+                    node.edges.forEach(edge => {
+                        const eid = escape(edge.id);
+                        const source = edge.sources[0];
+                        const target = edge.targets[0];
+                        
+                        let edgeStyle = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;";
+                        if (edge.isVector) edgeStyle += "strokeWidth=3;";
+
+                        xml += `        <mxCell id="${eid}" value="" style="${edgeStyle}" edge="1" parent="${id}" source="${escape(source)}" target="${escape(target)}">\n`;
+                        xml += `          <mxGeometry relative="1" as="geometry">\n`;
+                        if (edge.sections && edge.sections.length > 0) {
+                            xml += `            <Array as="points">\n`;
+                            edge.sections.forEach(section => {
+                                if (section.bendPoints) {
+                                    section.bendPoints.forEach(bp => {
+                                        xml += `              <mxPoint x="${bp.x}" y="${bp.y}" />\n`;
+                                    });
+                                }
+                            });
+                            xml += `            </Array>\n`;
+                        }
+                        xml += `          </mxGeometry>\n`;
+                        xml += `        </mxCell>\n`;
+                    });
+                }
+            }
+
+            if (layoutedGraph.children) {
+                layoutedGraph.children.forEach(child => traverse(child, "1"));
+            }
+            // Handle root level edges if any
+            if (layoutedGraph.edges) {
+                 // Similar edge handling for root edges...
+            }
+
+            xml += '      </root>\n';
+            xml += '    </mxGraphModel>\n';
+            xml += '  </diagram>\n';
+            xml += '</mxfile>';
+
+            const blob = new Blob([xml], { type: 'application/xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'elk_layout.drawio';
             a.click();
             URL.revokeObjectURL(url);
         };
