@@ -11,7 +11,7 @@
 
 
   <title>
-    Data Flow | GoJS
+    {{ title|default('Data Flow | GoJS') }}
   </title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
@@ -1506,6 +1506,241 @@ function searchDiagram() {
     myDiagram.commitTransaction("search");
 }
 
+function exportELK() {
+    const isVector = (type) => type && type.toLowerCase().indexOf("vector") >= 0;
+
+    const root = {
+        id: "root",
+        properties: { "algorithm": "layered" },
+        children: [],
+        edges: []
+    };
+
+    const nodeMap = {};
+
+    myDiagram.nodes.each(function(node) {
+        if (!(node instanceof go.Node)) return;
+
+        const elkNode = {
+            id: node.key,
+            labels: [{ text: node.data.entityName || node.data.name || node.key }],
+            width: node.actualBounds.width || 50,
+            height: node.actualBounds.height || 50,
+            children: [],
+            ports: [],
+            edges: []
+        };
+
+        if (node.category === "Module" || node.data.type === "Module") {
+            const inports = node.data.inports || [];
+            const outports = node.data.outports || [];
+            inports.forEach(p => {
+                elkNode.ports.push({ id: node.key + "_" + p.name, name: p.name, width: 5, height: 5, properties: { "port.side": "WEST" }, labels: [{ text: p.name, width: p.name.length * 9, height: 15 }], isVector: isVector(p.type) });
+            });
+            outports.forEach(p => {
+                elkNode.ports.push({ id: node.key + "_" + p.name, name: p.name, width: 5, height: 5, properties: { "port.side": "EAST" }, labels: [{ text: p.name, width: p.name.length * 9, height: 15 }], isVector: isVector(p.type) });
+            });
+        } else if (node.category === "TopInput" || node.data.type === "TopInput") {
+             elkNode.ports.push({ id: node.key + "_" + node.data.name, name: node.data.name, width: 5, height: 5, properties: { "port.side": "EAST" }, labels: [{ text: node.data.name, width: node.data.name.length * 9, height: 15 }], isVector: isVector(node.data.portType) });
+        } else if (node.category === "TopOutput" || node.data.type === "TopOutput") {
+             elkNode.ports.push({ id: node.key + "_" + node.data.name, name: node.data.name, width: 5, height: 5, properties: { "port.side": "WEST" }, labels: [{ text: node.data.name, width: node.data.name.length * 9, height: 15 }], isVector: isVector(node.data.portType) });
+        } else {
+            elkNode.ports.push({ id: node.key + "_default", width: 1, height: 1 });
+        }
+
+        nodeMap[node.key] = elkNode;
+    });
+
+    myDiagram.nodes.each(function(node) {
+        if (!(node instanceof go.Node)) return;
+        const elkNode = nodeMap[node.key];
+        if (node.containingGroup) {
+            const parentElk = nodeMap[node.containingGroup.key];
+            if (parentElk) parentElk.children.push(elkNode);
+            else root.children.push(elkNode);
+        } else {
+            root.children.push(elkNode);
+        }
+    });
+
+    myDiagram.links.each(function(link) {
+        const srcPort = link.fromPortId ? (link.fromNode.key + "_" + link.fromPortId) : (link.fromNode.key + "_default");
+        const dstPort = link.toPortId ? (link.toNode.key + "_" + link.toPortId) : (link.toNode.key + "_default");
+        
+        let netName = "net";
+        const f = link.fromPortId;
+        const t = link.toPortId;
+        if (f && t) {
+            netName = (f === t) ? f : f + "_" + t;
+        } else {
+            netName = f || t || "net";
+        }
+
+        let isNetVector = false;
+        if (link.fromNode && link.fromPortId) {
+            const fromNodeData = link.fromNode.data;
+            if (fromNodeData && fromNodeData.ports) {
+                const portInfo = fromNodeData.ports.find(p => p.name === link.fromPortId);
+                if (portInfo) {
+                    isNetVector = isVector(portInfo.type);
+                }
+            } else if (fromNodeData && fromNodeData.type === "TopInput") {
+                isNetVector = isVector(fromNodeData.portType);
+            }
+        }
+
+        const elkEdge = {
+            id: "e_" + (link.data.id || Math.random().toString(36).substr(2, 9)),
+            sources: [srcPort],
+            targets: [dstPort],
+            name: netName,
+            labels: [{ text: netName }],
+            isVector: isNetVector
+        };
+
+        if (link.containingGroup) {
+            const parentElk = nodeMap[link.containingGroup.key];
+            if (parentElk) parentElk.edges.push(elkEdge);
+            else root.edges.push(elkEdge);
+        } else {
+            root.edges.push(elkEdge);
+        }
+    });
+
+    const text = JSON.stringify(root, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'diagram_elk.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportDrawIO() {
+    let xml = '<mxfile host="app.diagrams.net" modified="' + new Date().toISOString() + '" agent="GoJS-Exporter" version="1.0" type="device">\n';
+    xml += '  <diagram id="diagram_1" name="Page-1">\n';
+    xml += '    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">\n';
+    xml += '      <root>\n';
+    xml += '        <mxCell id="0" />\n';
+    xml += '        <mxCell id="1" parent="0" />\n';
+
+    const escape = (str) => {
+        if (!str) return "";
+        return str.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&apos;');
+    };
+
+    myDiagram.nodes.each(function(node) {
+        let id = node.key;
+        let safeId = escape(id.toString());
+        let label = node.data.entityName || node.data.name || node.key;
+        
+        let x = node.actualBounds.x;
+        let y = node.actualBounds.y;
+        let width = node.actualBounds.width;
+        let height = node.actualBounds.height;
+        
+        let parentId = "1";
+        if (node.containingGroup) {
+            parentId = escape(node.containingGroup.key.toString());
+            x -= node.containingGroup.actualBounds.x;
+            y -= node.containingGroup.actualBounds.y;
+        }
+        
+        let style = "rounded=0;whiteSpace=wrap;html=1;";
+        if (node instanceof go.Group) {
+             style += "fillColor=" + (node.data.color || "#f5f5f5") + ";strokeColor=#666666;verticalAlign=top;spacingTop=5;container=1;collapsible=1;recursiveResize=0;";
+        } else {
+            if (node.category === "Module" || node.data.type === "Module") {
+                style += "fillColor=" + (node.data.color || "#dae8fc") + ";strokeColor=#6c8ebf;";
+            } else if (node.category === "TopInput") {
+                style += "fillColor=lightblue;strokeColor=gray;";
+            } else if (node.category === "TopOutput") {
+                style += "fillColor=lightcoral;strokeColor=gray;";
+            } else if (node.category === "Junction") {
+                style += "ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=black;strokeColor=none;";
+            }
+        }
+
+        xml += `        <mxCell id="${safeId}" value="${escape(label)}" style="${style}" vertex="1" parent="${parentId}">\n`;
+        xml += `          <mxGeometry x="${x}" y="${y}" width="${width}" height="${height}" as="geometry" />\n`;
+        xml += `        </mxCell>\n`;
+
+        const addPort = (portName, color, align) => {
+             let portObj = node.findPort(portName);
+             if (portObj) {
+                 let portBounds = portObj.getDocumentBounds();
+                 let relX = portBounds.x - node.actualBounds.x;
+                 let relY = portBounds.y - node.actualBounds.y;
+                 let portId = safeId + "_" + escape(portName);
+                 
+                 let dotSize = 8;
+                 let dotX = relX;
+                 let dotY = relY;
+                 let labelStyle = "";
+                 let showLabel = true;
+
+                 if (node.category === "Module" || node.data.type === "Module") {
+                     dotY = relY + (portBounds.height - dotSize) / 2;
+                     if (align === "left") { 
+                         dotX = relX;
+                         labelStyle = "labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;spacingLeft=2;";
+                     } else {
+                         dotX = relX + portBounds.width - 10; 
+                         labelStyle = "labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;spacingRight=2;";
+                     }
+                 } else {
+                     dotX = relX;
+                     dotY = relY;
+                     dotSize = portBounds.width;
+                     showLabel = false;
+                 }
+
+                 let value = showLabel ? escape(portName) : "";
+                 
+                 xml += `        <mxCell id="${portId}" value="${value}" style="shape=rectangle;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${color};strokeColor=none;fontSize=10;${labelStyle}" vertex="1" parent="${safeId}">\n`;
+                 xml += `          <mxGeometry x="${dotX}" y="${dotY}" width="${dotSize}" height="${dotSize}" as="geometry" />\n`;
+                 xml += `        </mxCell>\n`;
+             }
+        };
+
+        if (node.data.inports) node.data.inports.forEach(p => addPort(p.name, "orange", "left"));
+        if (node.data.outports) node.data.outports.forEach(p => addPort(p.name, "cyan", "right"));
+        if (node.category === "TopInput") addPort(node.data.name, "orange", "right");
+        if (node.category === "TopOutput") addPort(node.data.name, "orange", "left");
+    });
+
+    myDiagram.links.each(function(link) {
+        let id = "link_" + (link.data.id || Math.random().toString(36).substr(2, 9));
+        let sourceId = escape(link.fromNode.key.toString());
+        let targetId = escape(link.toNode.key.toString());
+        
+        if (link.fromPortId) sourceId = sourceId + "_" + escape(link.fromPortId);
+        if (link.toPortId) targetId = targetId + "_" + escape(link.toPortId);
+        
+        xml += `        <mxCell id="${id}" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="${sourceId}" target="${targetId}">\n`;
+        xml += `          <mxGeometry relative="1" as="geometry" />\n`;
+        xml += `        </mxCell>\n`;
+    });
+
+    xml += '      </root>\n';
+    xml += '    </mxGraphModel>\n';
+    xml += '  </diagram>\n';
+    xml += '</mxfile>';
+
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'diagram.drawio';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
   </script>
 
 
@@ -1529,6 +1764,108 @@ function searchDiagram() {
         <button id="SaveButton" onclick="save()">Save</button>
         <button onclick="load()">Load</button>
         <button onclick="exportVHDL()">Export VHDL</button>
+        <button onclick="exportELK()">Export ELK JSON</button>
+        <button onclick="exportDrawIO()">Export Draw.io</button>
+        <button onclick="autoConnect()">Auto Connect</button>
+        <button onclick="loadProject()">Load Project Folder</button>
+        Diagram Model saved in JSON format:
+      </div>
+      <div style="display: flex; flex: 1; min-height: 0; border: 1px solid black;">
+        <div id="searchResults" style="width: 300px; border-right: 1px solid black; overflow-y: auto; background: #f0f0f0;"></div>
+        <div id="searchSplitter" style="width: 5px; cursor: col-resize; background-color: #ccc;"></div>
+        <pre style="flex: 1; margin: 0; overflow: auto;"><code id="mySavedModel" class="json" contenteditable="true" spellcheck="false" style="outline: none; height: 100%; display: block;">
+      { "class": "GraphLinksModel",
+      "copiesArrays": true,
+      "copiesArrayObjects": true,
+      "nodeCategoryProperty": "type",
+      "linkFromPortIdProperty": "fromPort",
+      "linkToPortIdProperty": "toPort",
+      "nodeDataArray": [
+    ],
+      "linkDataArray": [
+    ]}
+        </code></pre>
+      </div>
+    </div>
+  </div>
+
+
+  </div>
+  <!-- * * * * * * * * * * * * * -->
+  <!--  End of GoJS sample code  -->
+  </div>
+
+</html> const addPort = (portName, color) => {
+             let portObj = node.findPort(portName);
+             if (portObj) {
+                 let portBounds = portObj.getDocumentBounds();
+                 let relX = portBounds.x - node.actualBounds.x;
+                 let relY = portBounds.y - node.actualBounds.y;
+                 let portId = safeId + "_" + escape(portName);
+                 
+                 xml += `        <mxCell id="${portId}" value="" style="shape=ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${color};strokeColor=none;" vertex="1" parent="${safeId}">\n`;
+                 xml += `          <mxGeometry x="${relX}" y="${relY}" width="${portBounds.width}" height="${portBounds.height}" as="geometry" />\n`;
+                 xml += `        </mxCell>\n`;
+             }
+        };
+
+        if (node.data.inports) node.data.inports.forEach(p => addPort(p.name, "orange"));
+        if (node.data.outports) node.data.outports.forEach(p => addPort(p.name, "cyan"));
+        if (node.category === "TopInput" || node.category === "TopOutput") addPort(node.data.name, "orange");
+    });
+
+    myDiagram.links.each(function(link) {
+        let id = "link_" + (link.data.id || Math.random().toString(36).substr(2, 9));
+        let sourceId = escape(link.fromNode.key.toString());
+        let targetId = escape(link.toNode.key.toString());
+        
+        if (link.fromPortId) sourceId = sourceId + "_" + escape(link.fromPortId);
+        if (link.toPortId) targetId = targetId + "_" + escape(link.toPortId);
+        
+        xml += `        <mxCell id="${id}" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="${sourceId}" target="${targetId}">\n`;
+        xml += `          <mxGeometry relative="1" as="geometry" />\n`;
+        xml += `        </mxCell>\n`;
+    });
+
+    xml += '      </root>\n';
+    xml += '    </mxGraphModel>\n';
+    xml += '  </diagram>\n';
+    xml += '</mxfile>';
+
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'diagram.drawio';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+  </script>
+
+
+  <div id="sample">
+    <div style="display: flex; width: 100%;">
+      <div id="myPaletteDiv" style="border: solid 1px black; width: 150px; height: 600px; background-color: #f0f0f0;"></div>
+      <div id="paletteSplitter" style="width: 5px; cursor: col-resize; background-color: #ccc;"></div>
+      <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
+      <div id="inspectorSplitter" style="width: 5px; cursor: col-resize; background-color: #ccc;"></div>
+      <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
+          <h3>Inspector</h3>
+          <div id="inspectorContent">Select an item to view details</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; height: 400px; margin-top: 10px;">
+      <div style="margin-bottom: 5px;">
+        <input id="searchInput" placeholder="Search..." style="margin-right: 5px" onkeydown="if(event.key==='Enter') searchDiagram()" />
+        <button onclick="searchDiagram()">Search</button>
+        <label style="margin-left: 10px; margin-right: 10px; font-family: sans-serif; font-size: 14px;"><input type="checkbox" id="hideGlobalNets" onclick="updateLinkVisibility()"> Hide Global Nets</label>
+        <button id="SaveButton" onclick="save()">Save</button>
+        <button onclick="load()">Load</button>
+        <button onclick="exportVHDL()">Export VHDL</button>
+        <button onclick="exportELK()">Export ELK JSON</button>
+        <button onclick="exportDrawIO()">Export Draw.io</button>
         <button onclick="autoConnect()">Auto Connect</button>
         <button onclick="loadProject()">Load Project Folder</button>
         Diagram Model saved in JSON format:

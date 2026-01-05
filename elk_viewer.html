@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELK JSON Viewer</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #graph { border: 1px solid #ccc; margin-top: 10px; overflow: auto; height: 80vh; }
+        svg { display: block; }
+        .node rect { fill: #f9f9f9; stroke: #333; stroke-width: 1; }
+        .port { fill: #333; }
+        .edge { fill: none; stroke: #333; stroke-width: 1; marker-end: url(#arrow); }
+        text { font-size: 12px; font-family: sans-serif; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <h1>ELK JSON to SVG Viewer</h1>
+    <p>Upload the <code>diagram_elk.json</code> file exported from the integration tool.</p>
+    <input type="file" id="fileInput" accept=".json">
+    <button onclick="downloadSVG()">Download SVG</button>
+    <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
+        <label><strong>Layout:</strong> 
+            <select id="algorithmSelect" onchange="updateLayout()">
+                <option value="layered">Layered (Hierarchical)</option>
+                <option value="mrtree">Mr. Tree</option>
+                <option value="force">Force Directed</option>
+                <option value="box">Box</option>
+                <option value="disco">Disco</option>
+            </select>
+        </label>
+        <label style="margin-left: 20px;"><strong>Direction:</strong> 
+            <select id="directionSelect" onchange="updateLayout()">
+                <option value="RIGHT">Left to Right</option>
+                <option value="DOWN">Top to Bottom</option>
+                <option value="LEFT">Right to Left</option>
+                <option value="UP">Bottom to Top</option>
+            </select>
+        </label>
+    </div>
+    <div id="graph"></div>
+
+    <!-- Load elkjs from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/elkjs@0.8.2/lib/elk.bundled.js"></script>
+    <script>
+        const elk = new ELK();
+        let currentGraph = null;
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    currentGraph = JSON.parse(e.target.result);
+                    updateLayout();
+                } catch (err) {
+                    alert("Error parsing JSON: " + err);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function updateLayout() {
+            if (!currentGraph) return;
+
+            const algorithm = document.getElementById('algorithmSelect').value;
+            const direction = document.getElementById('directionSelect').value;
+            
+            // Deep clone to avoid modifying the original loaded data
+            const graph = JSON.parse(JSON.stringify(currentGraph));
+
+            // Apply layout options
+            function applyOptions(node) {
+                if (!node.properties) node.properties = {};
+                node.properties['algorithm'] = algorithm;
+                node.properties['elk.direction'] = direction;
+                if (node.children) node.children.forEach(applyOptions);
+            }
+            applyOptions(graph);
+
+            // Adjust port sides based on direction for 'layered' algorithm
+            // Assumes original JSON has inputs as 'WEST' and outputs as 'EAST'
+            if (algorithm === 'layered') {
+                let inSide = "WEST";
+                let outSide = "EAST";
+                if (direction === "DOWN") { inSide = "NORTH"; outSide = "SOUTH"; }
+                else if (direction === "UP") { inSide = "SOUTH"; outSide = "NORTH"; }
+                else if (direction === "LEFT") { inSide = "EAST"; outSide = "WEST"; }
+
+                function adjustPorts(node) {
+                    if (node.ports) {
+                        node.ports.forEach(p => {
+                            if (!p.properties) p.properties = {}; // Ensure properties object exists
+
+                            const currentSide = p.properties["port.side"];
+
+                            // If side is missing, assign a default. This is the crucial fix for the error.
+                            if (!currentSide) {
+                                p.properties["port.side"] = inSide;
+                            } else if (currentSide === "WEST") { // Otherwise, rotate the existing sides based on direction
+                                p.properties["port.side"] = inSide;
+                            } else if (currentSide === "EAST") {
+                                p.properties["port.side"] = outSide;
+                            }
+                        });
+                    }
+                    if (node.children) node.children.forEach(adjustPorts);
+                }
+                adjustPorts(graph);
+            }
+
+            render(graph);
+        }
+
+        function render(graph) {
+            elk.layout(graph).then(layout => {
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                
+                // Calculate padding based on max label length to prevent clipping
+                let maxLen = 0;
+                function traverse(node) {
+                    if (node.labels) node.labels.forEach(l => maxLen = Math.max(maxLen, (l.text || "").length));
+                    if (node.ports) node.ports.forEach(p => {
+                        if (p.labels) p.labels.forEach(l => maxLen = Math.max(maxLen, (l.text || "").length));
+                    });
+                    if (node.children) node.children.forEach(c => traverse(c));
+                }
+                traverse(layout);
+                const padding = Math.max(50, maxLen * 12); // ~12px per char
+                
+                svg.setAttribute("width", (layout.width || 1000) + 2 * padding);
+                svg.setAttribute("height", (layout.height || 1000) + 2 * padding);
+                
+                // Background
+                const bg = document.createElementNS(svgNS, "rect");
+                bg.setAttribute("width", "100%");
+                bg.setAttribute("height", "100%");
+                bg.setAttribute("fill", "white");
+                svg.appendChild(bg);
+
+                // Defs for markers (arrows)
+                const defs = document.createElementNS(svgNS, "defs");
+                const marker = document.createElementNS(svgNS, "marker");
+                marker.setAttribute("id", "arrow");
+                marker.setAttribute("viewBox", "0 0 10 10");
+                marker.setAttribute("refX", "10");
+                marker.setAttribute("refY", "5");
+                marker.setAttribute("markerWidth", "6");
+                marker.setAttribute("markerHeight", "6");
+                marker.setAttribute("orient", "auto-start-reverse");
+                const path = document.createElementNS(svgNS, "path");
+                path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+                path.setAttribute("fill", "black");
+                marker.appendChild(path);
+                defs.appendChild(marker);
+                svg.appendChild(defs);
+
+                const rootG = document.createElementNS(svgNS, "g");
+                rootG.setAttribute("transform", `translate(${padding}, ${padding})`);
+                svg.appendChild(rootG);
+
+                function drawNode(parentGroup, node) {
+                    const x = node.x || 0;
+                    const y = node.y || 0;
+                    
+                    const g = document.createElementNS(svgNS, "g");
+                    g.setAttribute("class", "node");
+                    g.setAttribute("transform", `translate(${x},${y})`);
+
+                    // Draw rect
+                    const rect = document.createElementNS(svgNS, "rect");
+                    rect.setAttribute("width", node.width);
+                    rect.setAttribute("height", node.height);
+                    rect.setAttribute("rx", 5);
+                    rect.setAttribute("ry", 5);
+                    rect.setAttribute("fill", "#f9f9f9");
+                    rect.setAttribute("stroke", "#333");
+                    rect.setAttribute("stroke-width", "1");
+                    g.appendChild(rect);
+
+                    // Label
+                    if (node.labels && node.labels.length > 0) {
+                        const text = document.createElementNS(svgNS, "text");
+                        text.setAttribute("x", node.width / 2);
+                        text.setAttribute("y", node.height / 2);
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("dominant-baseline", "middle");
+                        text.textContent = node.labels[0].text;
+                        text.setAttribute("fill", "black");
+                        text.setAttribute("font-size", "14px");
+                        g.appendChild(text);
+                    }
+
+                    // Ports
+                    if (node.ports) {
+                        node.ports.forEach(port => {
+                            const pRect = document.createElementNS(svgNS, "rect");
+                            pRect.setAttribute("x", port.x);
+                            pRect.setAttribute("y", port.y);
+                            pRect.setAttribute("width", port.width);
+                            pRect.setAttribute("height", port.height);
+                            pRect.setAttribute("class", "port");
+
+                            const side = port.properties ? port.properties["port.side"] : "WEST";
+                            if (side === "WEST" || side === "NORTH") {
+                                pRect.setAttribute("fill", "green"); // Input ports
+                            } else {
+                                pRect.setAttribute("fill", "red"); // Output ports
+                            }
+
+                            pRect.setAttribute("stroke", "black");
+                            pRect.setAttribute("stroke-width", "0.5");
+                            g.appendChild(pRect);
+
+                            if (port.labels && port.labels.length > 0) {
+                                const pText = document.createElementNS(svgNS, "text");
+                                
+                                let tx = port.x + port.width / 2;
+                                let ty = port.y - 2;
+                                let anchor = "middle";
+                                
+                                // Shift label above the port to avoid wire overlap
+                                if (side === "WEST") { 
+                                    tx = port.x - 2; 
+                                    ty = port.y; 
+                                    anchor = "end"; 
+                                } else if (side === "EAST") { 
+                                    tx = port.x + port.width + 2; 
+                                    ty = port.y; 
+                                    anchor = "start"; 
+                                }
+
+                                pText.setAttribute("x", tx);
+                                pText.setAttribute("y", ty);
+                                pText.setAttribute("text-anchor", anchor);
+                                pText.setAttribute("font-size", "12px");
+                                pText.setAttribute("fill", "#555");
+                                pText.textContent = port.labels[0].text;
+                                g.appendChild(pText);
+                            }
+                        });
+                    }
+
+                    // Children
+                    if (node.children) {
+                        node.children.forEach(child => drawNode(g, child));
+                    }
+
+                    // Edges
+                    if (node.edges) {
+                        node.edges.forEach(edge => drawEdge(g, edge));
+                    }
+                    
+                    parentGroup.appendChild(g);
+                }
+
+                function drawEdge(parentGroup, edge) {
+                    if (edge.sections) {
+                        edge.sections.forEach(section => {
+                            const path = document.createElementNS(svgNS, "path");
+                            let d = `M ${section.startPoint.x} ${section.startPoint.y}`;
+                            if (section.bendPoints) {
+                                section.bendPoints.forEach(bp => d += ` L ${bp.x} ${bp.y}`);
+                            }
+                            d += ` L ${section.endPoint.x} ${section.endPoint.y}`;
+                            path.setAttribute("d", d);
+                            path.setAttribute("class", "edge");
+                            path.setAttribute("fill", "none");
+                            path.setAttribute("stroke", "#333");
+                            path.setAttribute("stroke-width", edge.isVector ? "3" : "1");
+                            path.setAttribute("marker-end", "url(#arrow)");
+                            parentGroup.appendChild(path);
+                        });
+                    }
+                    // Edge Labels
+                    if (edge.labels && edge.labels.length > 0) {
+                        const label = edge.labels[0];
+                        let lx = label.x;
+                        let ly = label.y;
+                        if ((lx === undefined || ly === undefined) && edge.sections && edge.sections.length > 0) {
+                             const s = edge.sections[0];
+                             lx = (s.startPoint.x + s.endPoint.x) / 2;
+                             ly = (s.startPoint.y + s.endPoint.y) / 2;
+                        }
+                        if (lx !== undefined) {
+                            const text = document.createElementNS(svgNS, "text");
+                            text.setAttribute("x", lx);
+                            text.setAttribute("y", ly - 3);
+                            text.setAttribute("text-anchor", "middle");
+                            text.setAttribute("fill", "blue");
+                            text.setAttribute("font-size", "12px");
+                            text.textContent = label.text;
+                            parentGroup.appendChild(text);
+                        }
+                    }
+                }
+
+                // Draw root content
+                if (layout.children) {
+                    layout.children.forEach(child => drawNode(rootG, child));
+                }
+                if (layout.edges) {
+                     layout.edges.forEach(edge => drawEdge(rootG, edge));
+                }
+
+                const container = document.getElementById('graph');
+                container.innerHTML = '';
+                container.appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                alert("Layout failed: " + err);
+            });
+        }
+
+        window.downloadSVG = function() {
+            const svg = document.querySelector('#graph svg');
+            if (!svg) {
+                alert("No SVG to download. Please load a file first.");
+                return;
+            }
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svg);
+            
+            // Add XML declaration
+            if(!source.match(/^<\?xml/)) {
+                source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+            }
+            
+            const blob = new Blob([source], {type: "image/svg+xml;charset=utf-8"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "diagram.svg";
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+    </script>
+</body>
+</html>
