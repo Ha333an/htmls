@@ -12,15 +12,21 @@
         .port { }
         .edge { fill: none; stroke: #333; marker-end: url(#arrow); }
         text { font-size: 12px; font-family: sans-serif; pointer-events: none; }
+        @media print {
+            .no-print, #svg-pan-zoom-controls { display: none !important; }
+            #graph { border: none; height: auto; overflow: visible; }
+            svg { height: auto; width: 100%; }
+        }
     </style>
 </head>
 <body>
-    <h1>ELK JSON to SVG Viewer</h1>
-    <p>Upload the <code>diagram_elk.json</code> file exported from the integration tool.</p>
-    <input type="file" id="fileInput" accept=".json">
-    <button onclick="downloadSVG()">Download SVG</button>
-    <button onclick="exportDrawIO()">Export Draw.io</button>
-    <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
+    <h1 class="no-print">ELK JSON to SVG Viewer</h1>
+    <p class="no-print">Upload the <code>diagram_elk.json</code> file exported from the integration tool.</p>
+    <input type="file" id="fileInput" accept=".json" class="no-print">
+    <button onclick="downloadSVG()" class="no-print">Download SVG</button>
+    <button onclick="exportDrawIO()" class="no-print">Export Draw.io</button>
+    <button onclick="window.print()" class="no-print">Print</button>
+    <div class="no-print" style="margin: 10px 0; padding: 10px; background: #f0f0f0; border: 1px solid #ccc;">
         <label><strong>Layout:</strong> 
             <select id="algorithmSelect" onchange="updateLayout()">
                 <option value="layered">Layered (Hierarchical)</option>
@@ -34,8 +40,8 @@
         </label>
         <label style="margin-left: 20px;"><strong>Direction:</strong> 
             <select id="directionSelect" onchange="updateLayout()">
-                <option value="RIGHT">Left to Right</option>
-                <option value="DOWN">Top to Bottom</option>
+                <option value="RIGHT" selected>Left to Right</option>
+                <option value="DOWN" >Top to Bottom</option>
                 <option value="LEFT">Right to Left</option>
                 <option value="UP">Bottom to Top</option>
             </select>
@@ -85,28 +91,14 @@
             }
             applyOptions(graph);
 
-            // Adjust port sides based on direction
-            // Also ensures ports have a side assigned to prevent errors in 'layered' layout
-            let inSide = "WEST";
-            let outSide = "EAST";
-            if (direction === "DOWN") { inSide = "NORTH"; outSide = "SOUTH"; }
-            else if (direction === "UP") { inSide = "SOUTH"; outSide = "NORTH"; }
-            else if (direction === "LEFT") { inSide = "EAST"; outSide = "WEST"; }
-
+            // Ensure ports have a side assigned to prevent errors in 'layered' layout
             function adjustPorts(node) {
                 if (node.ports) {
                     node.ports.forEach(p => {
                         if (!p.properties) p.properties = {}; // Ensure properties object exists
 
-                        const currentSide = p.properties["port.side"];
-
-                        // If side is missing, assign a default.
-                        if (!currentSide) {
-                            p.properties["port.side"] = inSide;
-                        } else if (currentSide === "WEST") { // Rotate existing sides
-                            p.properties["port.side"] = inSide;
-                        } else if (currentSide === "EAST") {
-                            p.properties["port.side"] = outSide;
+                        if (!p.properties["port.side"]) {
+                            p.properties["port.side"] = "WEST";
                         }
                     });
                 }
