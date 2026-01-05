@@ -1511,7 +1511,7 @@ function exportELK() {
 
     const root = {
         id: "root",
-        properties: { "algorithm": "layered" },
+        properties: { "algorithm": "layered", "org.eclipse.elk.portConstraints": "FIXED_SIDE" },
         children: [],
         edges: []
     };
@@ -1528,7 +1528,8 @@ function exportELK() {
             height: node.actualBounds.height || 50,
             children: [],
             ports: [],
-            edges: []
+            edges: [],
+            properties: { "org.eclipse.elk.portConstraints": "FIXED_SIDE" }
         };
 
         if (node.category === "Module" || node.data.type === "Module") {
