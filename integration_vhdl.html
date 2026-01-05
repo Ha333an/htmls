@@ -262,6 +262,19 @@
           myPalette.model = new go.GraphLinksModel(paletteData);
       }
 
+      window.openNodeFile = function() {
+        var node = myDiagram.selection.first();
+        if (node instanceof go.Node && node.data && node.data.code) {
+            var win = window.open("", "_blank");
+            if (win) {
+                win.document.write("<html><head><title>" + (node.data.fileName || "Source") + "</title></head><body><pre>" + 
+                    node.data.code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + 
+                    "</pre></body></html>");
+                win.document.close();
+            }
+        }
+      }
+
       window.loadProject = function() {
         var input = document.createElement('input');
         input.type = 'file';
@@ -1128,10 +1141,14 @@
                                   "Type: " + type;
         } else if (sel instanceof go.Node) {
             var data = sel.data;
+            var fileDisplay = (data.fileName || "N/A (Not loaded)");
+            if (data.fileName && data.code) {
+                fileDisplay = "<a href='#' onclick='openNodeFile(); return false;'>" + data.fileName + "</a>";
+            }
             var content = "<b>Node Selected</b><br/>" +
                                   "Key: " + data.key + "<br/>" +
                                   "Entity: " + (data.entityName || "N/A") + "<br/>" +
-                                  "File: " + (data.fileName || "N/A (Not loaded)") + "<br/>" +
+                                  "File: " + fileDisplay + "<br/>" +
                                   "Type: " + data.type;
             
             if (data.code) {
