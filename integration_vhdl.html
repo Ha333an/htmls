@@ -33,6 +33,7 @@
         initialAutoScale: go.AutoScale.UniformToFill,
         "linkingTool.isEnabled": true,
         "relinkingTool.isEnabled": true,
+        allowDrop: true,
         layout: $(go.LayeredDigraphLayout, { direction: 0, setsPortSpots: false, layerSpacing: 150, columnSpacing: 50, isOngoing: false }),
         'undoManager.isEnabled': true
       });
@@ -168,6 +169,22 @@
       myDiagram.nodeTemplateMap.add("Module", makeTemplate("Module", false, "cornflowerblue"));
       myDiagram.groupTemplateMap.add("Module", makeTemplate("Module", true, "forestgreen"));
 
+      // Initialize Palette
+      var myPalette = $(go.Palette, "myPaletteDiv");
+      myPalette.nodeTemplateMap = myDiagram.nodeTemplateMap.copy();
+      myPalette.groupTemplateMap = myDiagram.groupTemplateMap.copy();
+
+      // Override "Module" template for Palette to be simpler and bigger
+      myPalette.groupTemplateMap.add("Module",
+        $(go.Group, "Auto",
+          { locationSpot: go.Spot.Center },
+          $(go.Shape, "Rectangle", { stroke: "black", strokeWidth: 1, width: 130, height: 50 },
+            new go.Binding("fill", "color")),
+          $(go.TextBlock, { margin: 5, font: "bold 10pt sans-serif", stroke: "black", textAlign: "center", wrap: go.TextBlock.WrapFit, width: 120 },
+            new go.Binding("text", "entityName"))
+        )
+      );
+
       myDiagram.nodeTemplateMap.add("TopInput",
         $(go.Node, "Spot",
           { locationSpot: go.Spot.Center },
@@ -211,6 +228,40 @@
 
       var vhdlLibrary = {};
 
+      function updatePalette() {
+          var paletteData = [];
+          var levelColors = ["#E3F2FD", "#E8F5E9", "#FFF3E0", "#F3E5F5", "#E0F2F1", "#FFEBEE"];
+          
+          for (var key in vhdlLibrary) {
+              var info = vhdlLibrary[key];
+              var inports = [];
+              var outports = [];
+              if (info.ports) {
+                  info.ports.forEach(function (port) {
+                    if (port.direction === 'in') {
+                      inports.push({ name: port.name, type: port.type });
+                    } else {
+                      outports.push({ name: port.name, type: port.type });
+                    }
+                  });
+              }
+              
+              paletteData.push({
+                  key: info.name,
+                  entityName: info.name,
+                  fileName: info.fileName,
+                  type: 'Module',
+                  isGroup: true,
+                  isExpanded: false,
+                  inports: inports,
+                  outports: outports,
+                  ports: info.ports,
+                  color: levelColors[0]
+              });
+          }
+          myPalette.model = new go.GraphLinksModel(paletteData);
+      }
+
       window.loadProject = function() {
         var input = document.createElement('input');
         input.type = 'file';
@@ -231,6 +282,7 @@
           
           console.log("Found " + promises.length + " VHDL files to process.");
           await Promise.all(promises);
+          updatePalette();
           
           var entities = Object.keys(vhdlLibrary);
           if (entities.length === 0) {
@@ -295,6 +347,7 @@
              promises.push(readFile(files[i]));
           }
           await Promise.all(promises);
+          updatePalette();
 
           if (files.length === 1) {
               var file = files[0];
@@ -1133,6 +1186,7 @@
 
       makeResizable("inspectorSplitter", "inspector", false);
       makeResizable("searchSplitter", "searchResults", true);
+      makeResizable("paletteSplitter", "myPaletteDiv", true);
 
       load();
     }
@@ -1438,6 +1492,8 @@ function searchDiagram() {
 
   <div id="sample">
     <div style="display: flex; width: 100%;">
+      <div id="myPaletteDiv" style="border: solid 1px black; width: 150px; height: 600px; background-color: #f0f0f0;"></div>
+      <div id="paletteSplitter" style="width: 5px; cursor: col-resize; background-color: #ccc;"></div>
       <div id="myDiagramDiv" style="border: solid 1px black; flex-grow: 1; height: 600px"></div>
       <div id="inspectorSplitter" style="width: 5px; cursor: col-resize; background-color: #ccc;"></div>
       <div id="inspector" style="border: solid 1px black; width: 250px; height: 600px; padding: 10px; background-color: #f0f0f0; overflow: auto;">
