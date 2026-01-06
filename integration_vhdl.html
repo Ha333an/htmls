@@ -48,6 +48,27 @@
         }
       });
 
+      myDiagram.addDiagramListener("ExternalObjectsDropped", function(e) {
+        var parts = [];
+        e.subject.each(function(p) { parts.push(p); });
+        myDiagram.startTransaction("Expand Dropped Modules");
+        parts.forEach(function(part) {
+           if (part instanceof go.Group && part.data.type === "Module") {
+               var entityName = part.data.entityName;
+               if (entityName && vhdlLibrary[entityName.toLowerCase()]) {
+                   var info = vhdlLibrary[entityName.toLowerCase()];
+                   var loc = part.location.copy();
+                   myDiagram.remove(part);
+                   var newKey = buildHierarchy(info, null, null, 0);
+                   var newNode = myDiagram.findNodeForKey(newKey);
+                   if (newNode) newNode.location = loc;
+               }
+           }
+        });
+        myDiagram.commitTransaction("Expand Dropped Modules");
+        window.updateLinkVisibility();
+      });
+
       myDiagram.addDiagramListener('Modified', (e) => {
         var button = document.getElementById('SaveButton');
         if (button) button.disabled = !myDiagram.isModified;
@@ -795,6 +816,7 @@
         });
 
         createInternalLinks(moduleInfo, instanceKey, localInstances, localComponents);
+        return instanceKey;
       }
 
       function createInternalLinks(moduleInfo, parentKey, instances, localComponents) {
