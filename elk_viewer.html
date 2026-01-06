@@ -87,6 +87,7 @@
                 node.properties['algorithm'] = algorithm;
                 node.properties['elk.direction'] = direction;
                 node.properties['org.eclipse.elk.portConstraints'] = 'FIXED_SIDE';
+                node.properties['org.eclipse.elk.edgeRouting'] = 'ORTHOGONAL';
                 if (node.children) node.children.forEach(applyOptions);
             }
             applyOptions(graph);

@@ -936,8 +936,6 @@
 
 
       myDiagram.linkTemplate = $(go.Link, {
-        routing: go.Routing.Orthogonal,
-        corner: 25,
         routing: go.Link.AvoidsNodes,
         curve: go.Link.JumpOver,
         corner: 10,
@@ -1511,7 +1509,7 @@ function exportELK() {
 
     const root = {
         id: "root",
-        properties: { "algorithm": "layered", "org.eclipse.elk.portConstraints": "FIXED_SIDE" },
+        properties: { "algorithm": "layered", "org.eclipse.elk.portConstraints": "FIXED_SIDE", "org.eclipse.elk.edgeRouting": "ORTHOGONAL" },
         children: [],
         edges: []
     };
@@ -1529,7 +1527,7 @@ function exportELK() {
             children: [],
             ports: [],
             edges: [],
-            properties: { "org.eclipse.elk.portConstraints": "FIXED_SIDE" }
+            properties: { "org.eclipse.elk.portConstraints": "FIXED_SIDE", "org.eclipse.elk.edgeRouting": "ORTHOGONAL" }
         };
 
         if (node.category === "Module" || node.data.type === "Module") {
