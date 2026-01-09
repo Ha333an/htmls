@@ -422,79 +422,85 @@
 
         // Use regex to find the start of the port block, allowing for optional space
         var searchStartIndex = entityMatch.index + entityMatch[0].length;
+        
+        // Find end of entity to ensure port belongs to entity
+        var entityEndRegex = new RegExp("end\\s+(?:entity|" + entityName + ")?\\s*;", 'i');
+        var entityEndMatch = entityEndRegex.exec(cleanedVHDL.substring(searchStartIndex));
+        var entityEndIndex = entityEndMatch ? (searchStartIndex + entityEndMatch.index) : cleanedVHDL.length;
+
         var portStartMatch = /port\s*\(/i.exec(cleanedVHDL.substring(searchStartIndex));
-        if (!portStartMatch) {
-            console.log("Parser: No port declaration found for entity " + entityName);
-            return null;
-        }
+        
+        if (portStartMatch && (searchStartIndex + portStartMatch.index < entityEndIndex)) {
+            var portStartIndex = searchStartIndex + portStartMatch.index + portStartMatch[0].length - 1;
 
-        var portStartIndex = searchStartIndex + portStartMatch.index + portStartMatch[0].length - 1;
+            // Initialize a counter to track parentheses
+            let parenthesesCount = 1;
+            let portEndIndex = -1;
 
-        // Initialize a counter to track parentheses
-        let parenthesesCount = 1;
-        let portEndIndex = -1;
-
-        // Traverse characters starting from the port start index to find the end
-        for (let i = portStartIndex + 1; i < cleanedVHDL.length; i++) {
-          if (cleanedVHDL[i] === '(') {
-            parenthesesCount++;
-          } else if (cleanedVHDL[i] === ')') {
-            parenthesesCount--;
-            // When we reach ");", we've found the end of the port block
-            if (parenthesesCount === 0) {
-              var nextIndex = i + 1;
-              while (nextIndex < cleanedVHDL.length && cleanedVHDL[nextIndex] === ' ') nextIndex++;
-              if (cleanedVHDL[nextIndex] === ';') {
-                portEndIndex = nextIndex + 1;
-                break;
+            // Traverse characters starting from the port start index to find the end
+            for (let i = portStartIndex + 1; i < cleanedVHDL.length; i++) {
+              if (cleanedVHDL[i] === '(') {
+                parenthesesCount++;
+              } else if (cleanedVHDL[i] === ')') {
+                parenthesesCount--;
+                // When we reach ");", we've found the end of the port block
+                if (parenthesesCount === 0) {
+                  var nextIndex = i + 1;
+                  while (nextIndex < cleanedVHDL.length && cleanedVHDL[nextIndex] === ' ') nextIndex++;
+                  if (cleanedVHDL[nextIndex] === ';') {
+                    portEndIndex = nextIndex + 1;
+                    break;
+                  }
+                }
               }
             }
-          }
-        }
 
-        // If no end was found, return null
-        if (portEndIndex === -1) {
-            console.log("Parser: Could not find end of port block for entity " + entityName);
-            return null;
-        }
-
-        // Extract the port section
-        var portSection = cleanedVHDL.substring(portStartIndex + 1, portEndIndex).trim();
-        // Remove the trailing ); or ) ;
-        portSection = portSection.replace(/\)\s*;?$/, "");
-
-        // Split the port section into individual lines of port declarations
-        var portLines = portSection.split(';').map(line => line.trim()).filter(line => line);
-        // Process each line to extract port details
-        portLines.forEach(function (line) {
-          // Match ports with std_logic or std_logic_vector, capturing vector ranges if they exist
-          //var portMatch = /(\w+)\s*:\s*(in|inout|out)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
-          var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([^;]+)/i.exec(line);
-
-          if (portMatch) {
-            var name = portMatch[1].trim();
-            var direction = portMatch[2].toLowerCase().trim();
-            var type = portMatch[3].trim().split(':=')[0].trim();
-
-            // Check if the type includes a vector range
-            var vectorMatch = /std_logic_vector\s*\(\s*(\d+)\s+downto\s+(\d+)\s*\)/i.exec(type);
-            if (vectorMatch) {
-              var upper = vectorMatch[1];
-              var lower = vectorMatch[2];
-              //name += `_${upper}_${lower}]`;
-              //name += `_${upper}_${lower}`;
+            // If no end was found, return null
+            if (portEndIndex === -1) {
+                console.log("Parser: Could not find end of port block for entity " + entityName);
+                return null;
             }
 
-            // Add the port to the ports array
-            ports.push({
-              name: name,
-              direction: direction,
-              type: type,
-              upper: upper,
-              lower: lower
+            // Extract the port section
+            var portSection = cleanedVHDL.substring(portStartIndex + 1, portEndIndex).trim();
+            // Remove the trailing ); or ) ;
+            portSection = portSection.replace(/\)\s*;?$/, "");
+
+            // Split the port section into individual lines of port declarations
+            var portLines = portSection.split(';').map(line => line.trim()).filter(line => line);
+            // Process each line to extract port details
+            portLines.forEach(function (line) {
+              // Match ports with std_logic or std_logic_vector, capturing vector ranges if they exist
+              //var portMatch = /(\w+)\s*:\s*(in|inout|out)\s+([\w_]+(?:\s*\(\s*\d+\s+downto\s+\d+\s*\))?)/i.exec(line);
+              var portMatch = /([a-zA-Z_][\w]*)\s*:\s*(in|out|inout|buffer)\s+([^;]+)/i.exec(line);
+
+              if (portMatch) {
+                var name = portMatch[1].trim();
+                var direction = portMatch[2].toLowerCase().trim();
+                var type = portMatch[3].trim().split(':=')[0].trim();
+
+                // Check if the type includes a vector range
+                var vectorMatch = /std_logic_vector\s*\(\s*(\d+)\s+downto\s+(\d+)\s*\)/i.exec(type);
+                if (vectorMatch) {
+                  var upper = vectorMatch[1];
+                  var lower = vectorMatch[2];
+                  //name += `_${upper}_${lower}]`;
+                  //name += `_${upper}_${lower}`;
+                }
+
+                // Add the port to the ports array
+                ports.push({
+                  name: name,
+                  direction: direction,
+                  type: type,
+                  upper: upper,
+                  lower: lower
+                });
+              }
             });
-          }
-        });
+        } else {
+            console.log("Parser: No port declaration found for entity " + entityName + ". Assuming no ports.");
+        }
 
         // Parse Architecture for Components and Instantiations
         var components = {};
