@@ -603,7 +603,7 @@
                  while ((m = ifRegex.exec(procBody)) !== null) inputs.add(m[1]);
                  // Scan conditions in if/elsif statements for inputs
                  var ifConditionRegex = /(?:if|elsif)\s+([\s\S]+?)\s+then/gi;
-                 var condKeywords = new Set(["not", "abs", "and", "or", "nand", "nor", "xor", "xnor", "mod", "rem", "true", "false", "rising_edge", "falling_edge", "std_logic", "std_logic_vector", "unsigned", "signed", "to_integer", "to_unsigned", "to_signed", "others", "to", "downto", "event", "conv_integer", "conv_std_logic_vector"]);
+                 var condKeywords = new Set(["not", "abs", "and", "or", "nand", "nor", "xor", "xnor", "mod", "rem", "true", "false", "rising_edge", "falling_edge", "std_logic", "std_logic_vector", "unsigned", "signed", "to_integer", "to_unsigned", "to_signed", "others", "to", "downto", "event", "conv_integer", "conv_std_logic_vector", "process"]);
                  
                  while ((m = ifConditionRegex.exec(procBody)) !== null) {
                      var condition = m[1];
@@ -615,8 +615,16 @@
                      });
                  }
                  
-                 var caseRegex = /case\s+([a-zA-Z_][\w]*)(?:\s*\([\s\S]*?\))?\s+is/gi;
-                 while ((m = caseRegex.exec(procBody)) !== null) inputs.add(m[1]);
+                 var caseRegex = /case\s+([\s\S]+?)\s+is/gi;
+                 while ((m = caseRegex.exec(procBody)) !== null) {
+                     var condition = m[1];
+                     var tokens = condition.match(/[a-zA-Z_][\w]*/g) || [];
+                     tokens.forEach(function(t) {
+                         if (!condKeywords.has(t.toLowerCase()) && isNaN(parseInt(t[0]))) {
+                             inputs.add(t);
+                         }
+                     });
+                 }
 
                  var compName = "PROC_" + procLabel;
                  var compPorts = [];
@@ -767,7 +775,7 @@
                 
                 var expr = assign.expression;
                 var tokens = expr.match(/[a-zA-Z_][\w]*/g) || [];
-                var keywords = new Set(["not", "abs", "and", "or", "nand", "nor", "xor", "xnor", "mod", "rem", "sll", "srl", "sla", "sra", "rol", "ror", "others", "when", "else", "std_logic", "std_logic_vector", "unsigned", "signed", "to_integer", "to_unsigned", "to_signed", "downto", "to", "if", "then"]);
+                var keywords = new Set(["not", "abs", "and", "or", "nand", "nor", "xor", "xnor", "mod", "rem", "sll", "srl", "sla", "sra", "rol", "ror", "others", "when", "else", "std_logic", "std_logic_vector", "unsigned", "signed", "to_integer", "to_unsigned", "to_signed", "downto", "to", "if", "then", "true", "false", "rising_edge", "falling_edge", "process"]);
                 
                 var inputs = [];
                 tokens.forEach(function(t) {
