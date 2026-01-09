@@ -567,6 +567,24 @@
                  
                  var inputs = new Set();
                  var outputs = new Set();
+                 var locals = new Set();
+
+                 // Identify local variables, constants, and loop iterators to exclude them
+                 var varRegex = /\bvariable\s+([^:]+):/gi;
+                 var match;
+                 while ((match = varRegex.exec(procBody)) !== null) {
+                     var vars = match[1].split(',');
+                     vars.forEach(v => locals.add(v.trim().toLowerCase()));
+                 }
+
+                 var constRegex = /\bconstant\s+([^:]+):/gi;
+                 while ((match = constRegex.exec(procBody)) !== null) {
+                     var consts = match[1].split(',');
+                     consts.forEach(c => locals.add(c.trim().toLowerCase()));
+                 }
+
+                 var loopRegex = /\bfor\s+([a-zA-Z_]\w*)\s+in\b/gi;
+                 while ((match = loopRegex.exec(procBody)) !== null) locals.add(match[1].toLowerCase());
                  
                  if (sensitivityStr.trim()) {
                      sensitivityStr.split(',').forEach(s => inputs.add(s.trim()));
@@ -607,6 +625,7 @@
                  var allSigs = new Set([...inputs, ...outputs]);
                  allSigs.forEach(sig => {
                      if (!sig) return;
+                     if (locals.has(sig.toLowerCase())) return;
                      var dir = 'in';
                      if (outputs.has(sig)) {
                          if (inputs.has(sig)) dir = 'inout';
